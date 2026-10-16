@@ -18,6 +18,7 @@ app.whenReady().then(async () => {
 
   if (what === 'all' || what === 'stills') {
     save('banner.png', await js('demo.renderBanner()'))
+    save('heroines.png', await js("demo.renderBanner('heroines')"))
     save('heroes.png', await js('demo.renderFour()'))
     console.log('stills done')
   }

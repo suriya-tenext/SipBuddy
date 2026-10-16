@@ -17,7 +17,7 @@ Grab the latest build from **[Releases](../../releases/latest)**:
 | Platform | File | First launch |
 |---|---|---|
 | **macOS 14+** (Apple Silicon) | `SipBuddy-macOS.zip` | Unzip, move to Applications, then **right-click → Open** (the app isn't notarized yet). |
-| **Windows 10/11** (x64) | `SipBuddy-Setup-1.0.0.exe` | If SmartScreen warns, click **More info → Run anyway** (the installer isn't code-signed yet). |
+| **Windows 10/11** (x64) | `SipBuddy-Setup-1.1.0.exe` | If SmartScreen warns, click **More info → Run anyway** (the installer isn't code-signed yet). |
 
 The buddy appears above your dock or taskbar. Look for 💧 in the menu bar (macOS) or the system tray (Windows) for Settings, Pause and Quit.
 
@@ -61,7 +61,14 @@ The Windows app is a port of the macOS one: same 15 heroes (the renderer in `win
 
 ![Ironclad, Mr. Sterling, Skyline and Brawn](docs/heroes.png)
 
-15 original heroes ship built in, led by **Ironclad** (the default), **Mr. Sterling**, **Skyline** and **Brawn**, then Pixel, Captain Hydro, Volt, Night Owl, Crimson Comet, Frost, Shadow Cat, Astro, Ember, Sprout and Hush. Each has its own voice. Pick one in **Settings → Buddies**.
+![The 15 heroines](docs/heroines.png)
+
+30 original characters ship built in: 15 heroes and a heroine version of each.
+
+- **Heroes:** led by **Ironclad** (the default), **Mr. Sterling**, **Skyline** and **Brawn**, then Pixel, Captain Hydro, Volt, Night Owl, Crimson Comet, Frost, Shadow Cat, Astro, Ember, Sprout and Hush.
+- **Heroines:** led by **Alloy**, **Ms. Sterling**, **Skyla** and **Jade**, then Pixie, Captain Marina, Volta, Nightingale, Scarlet Comet, Flurry, Velvet, Astra, Blaze, Blossom and Whisper. Same costumes and powers, drawn with a feminine figure and face.
+
+Each has its own voice. Pick one in **Settings → Buddies** (switch between Heroes and Heroines at the top).
 
 They're live **vector puppets** drawn by code (`HeroRig.swift`), not sprite frames:
 - **Heroic proportions:** the head is about 1/5 of the height, with broad shoulders, a tapered waist and muscular limbs.
@@ -78,7 +85,7 @@ They're live **vector puppets** drawn by code (`HeroRig.swift`), not sprite fram
   - it flails when dragged
 - Calm states redraw at a lower frame rate to save battery.
 
-**Hero Builder** lets you design your own: hair style, mask (domino, shades, cowl, helmet, armor, full-face), beard, body build, outfit (bodysuit, suit & tie, bare, armor), attitude, ears, cape, chest emblem, and every color, with a live animated preview and a 🎲 randomizer.
+**Hero Builder** lets you design your own: male or female figure, hair style, mask (domino, shades, cowl, helmet, armor, full-face), beard, body build, outfit (bodysuit, suit & tie, bare, armor), attitude, ears, cape, chest emblem, and every color, with a live animated preview and a 🎲 randomizer.
 
 ## AI
 

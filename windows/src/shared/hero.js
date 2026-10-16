@@ -35,6 +35,11 @@
         const [r, g, b] = rgb(c);
         return a >= 1 ? `rgb(${r},${g},${b})` : `rgba(${r},${g},${b},${a})`;
     }
+    /// Blends toward `other` by `t` (0 = c, 1 = other).
+    function mixed(c, other, t) {
+        const a = rgb(c), b = rgb(other);
+        return a.map((v, i) => Math.round(v * (1 - t) + b[i] * t));
+    }
     function hex(c) {
         return '#' + rgb(c).map((v) => v.toString(16).padStart(2, '0')).join('').toUpperCase();
     }
@@ -134,6 +139,7 @@
     const Outfit = ['bodysuit', 'tux', 'bare', 'armor'];
     const Build = ['regular', 'big'];
     const Attitude = ['cheerful', 'stoic', 'fierce'];
+    const Figure = ['masculine', 'feminine'];
 
     const h6 = (n) => '#' + n.toString(16).padStart(6, '0').toUpperCase();
 
@@ -147,11 +153,12 @@
             emblem: o.emblem ?? 'none', emblemColor: h6(o.emblemColor ?? 0xFFFFFF), glasses: o.glasses ?? false,
             cup: h6(o.cup ?? 0x4CAE4F),
             outfit: o.outfit ?? 'bodysuit', build: o.build ?? 'regular', beard: o.beard ?? false, attitude: o.attitude ?? 'cheerful',
+            figure: 'masculine',
         };
     }
 
     /// Original characters (no franchise names or logos), each with its own look and voice.
-    const presets = [
+    const heroes = [
         make('ironclad', 'Ironclad', 'Hydration systems: online. ⚙️', "cocky, witty genius inventor; calls water 'coolant' and every sip a 'system upgrade'",
             { skin: 0xE8B894, hair: 0x2A1E18, hairStyle: 'short', suit: 0xB01E28, accent: 0xE0A93A,
               pants: 0xE0A93A, boots: 0xB01E28, gloves: 0xB01E28, belt: false, mask: 'armor', maskColor: 0xB01E28,
@@ -211,11 +218,51 @@
               emblem: 'none', cup: 0xC8323C }),
     ];
 
+    /// A heroine for every hero: same costume and powers, her own name, voice and hair.
+    function her(heroID, name, tagline, voice, o = {}) {
+        const l = Object.assign({}, heroes.find((h) => h.id === heroID));
+        l.id = heroID + '-her';
+        l.name = name; l.tagline = tagline; l.voice = voice;
+        l.figure = 'feminine';
+        l.beard = false;
+        if (o.hair) l.hairStyle = o.hair;
+        if (o.hairColor != null) l.hair = h6(o.hairColor);
+        return l;
+    }
+
+    const heroines = [
+        her('ironclad', 'Alloy', 'Hydration protocols: engaged. ✨', "brilliant, confident engineer; calls water 'coolant' and every sip an 'efficiency upgrade'",
+            { hair: 'ponytail', hairColor: 0x7A3B1E }),
+        her('sterling', 'Ms. Sterling', "She's back. And she's thirsty.", 'stoic retired professional; very short, deadly serious sentences; treats hydration like a sacred contract; sometimes mentions her cat',
+            { hair: 'long' }),
+        her('skyline', 'Skyla', 'Swinging in with your water break!', 'quippy, upbeat teen hero who cracks jokes nonstop',
+            { hair: 'ponytail', hairColor: 0xE8C77A }),
+        her('brawn', 'Jade', 'JADE SMASH… THIRST.', 'mighty gentle giant who talks in short ALL-CAPS smash sentences but is secretly very sweet',
+            { hair: 'long' }),
+        her('pixel', 'Pixie', 'Your cozy desk sidekick', 'warm, upbeat, a little goofy', { hair: 'bun' }),
+        her('hydro', 'Captain Marina', 'Defender of the daily 8 glasses!', 'booming heroic announcer who treats every sip like saving the city',
+            { hair: 'long' }),
+        her('volt', 'Volta', 'Charged up and ready to hydrate ⚡', 'hyper, talks fast, loves puns about energy', { hair: 'ponytail' }),
+        her('owl', 'Nightingale', 'Watches over your late-night coding 🌙', 'dry, mysterious, speaks in short moody lines with secret warmth',
+            { hair: 'ponytail' }),
+        her('comet', 'Scarlet Comet', 'Fastest hydration in the galaxy', 'cocky space racer, competitive, counts everything as a lap record'),
+        her('frost', 'Flurry', 'Cool, calm and very hydrated ❄️', 'serene and elegant, speaks softly like falling snow'),
+        her('cat', 'Velvet', 'Sneaks up when you forget to drink', 'smug feline thief, playful, occasionally says nya'),
+        her('astro', 'Astra', 'Mission control says: drink water', 'cheerful astronaut using mission-control jargon'),
+        her('ember', 'Blaze', 'Hot-headed, but stays hydrated 🔥', 'fiery, dramatic, overreacts to everything', { hair: 'long' }),
+        her('sprout', 'Blossom', 'A tiny plant parent who needs water too 🌸', 'gentle, wholesome, compares everything to plants', { hair: 'curly' }),
+        her('ninja', 'Whisper', 'Silent. Swift. Sipping.', 'a quiet ninja of few words, speaks in haiku-like fragments'),
+    ];
+
+    const presets = heroes.concat(heroines);
+
     const preset = (id) => presets.find((p) => p.id === id) || null;
 
     /// Fills in optional fields so looks saved by older versions still render.
     function normalize(look) {
-        return Object.assign({ outfit: 'bodysuit', build: 'regular', beard: false, attitude: 'cheerful', cape: null }, look);
+        const l = Object.assign({ outfit: 'bodysuit', build: 'regular', beard: false, attitude: 'cheerful', cape: null, figure: 'masculine' }, look);
+        if (l.figure == null) l.figure = 'masculine';
+        return l;
     }
 
     /// Same text descriptions the Mac app sends to the AI.
@@ -660,6 +707,23 @@
             .Z();
     }
 
+    /// Body proportions: build scales everything; the feminine figure narrows the shoulders and waist,
+    /// widens the hips and slims the limbs.
+    function Body(look) {
+        const feminine = look.figure === 'feminine';
+        const b = {
+            bw: look.build === 'big' ? 1.25 : 1,
+            feminine,
+            shoulder: feminine ? 0.84 : 1,
+            waist: feminine ? 0.8 : 1,
+            hip: feminine ? 1.14 : 1,
+            arm: feminine ? 0.74 : 1,
+            leg: feminine ? 0.86 : 1,
+        };
+        b.shoulderX = Rig.shoulder.x * b.bw * b.shoulder;
+        return b;
+    }
+
     const coversHead = (mask) => mask === 'cowl' || mask === 'helmet' || mask === 'armor' || mask === 'fullface';
 
     function draw(ctx, lookIn, pose) {
@@ -685,7 +749,8 @@
             ctx.scale(1 / Math.sqrt(Math.max(0.5, sq)), sq);
 
             const outfit = look.outfit;
-            const bw = look.build === 'big' ? 1.25 : 1;
+            const body = Body(look);
+            const bw = body.bw;
             const drop = 82 * p.sit;
             const hipY = Rig.hip.y - drop;
             const covers = coversHead(look.mask);
@@ -693,28 +758,32 @@
 
             // Back layers.
             if (look.cape) drawCape(ctx, look.cape, p, drop);
-            if (!covers) drawBackHair(ctx, look, p, drop);
+            if (!covers || (look.hairStyle === 'ponytail' && (look.mask === 'fullface' || look.mask === 'cowl'))) {
+                drawBackHair(ctx, look, p, drop);
+            }
 
             // Legs, then pelvis.
-            for (const left of [true, false]) drawLeg(ctx, look, p, left, hipY, bw);
-            fill(ctx, roundedPoly([[-29 * bw, hipY - 12], [29 * bw, hipY - 12], [30 * bw, hipY + 14], [-30 * bw, hipY + 14]], 9), look.pants);
+            for (const left of [true, false]) drawLeg(ctx, look, p, left, hipY, body);
+            const hw = bw * body.hip;
+            fill(ctx, roundedPoly([[-29 * hw, hipY - 12], [29 * hw, hipY - 12], [30 * hw, hipY + 14], [-30 * hw, hipY + 14]], 9), look.pants);
 
-            // Torso: broad chest tapering to the waist.
+            // Torso: broad chest tapering to the waist (an hourglass for the feminine figure).
             const top = 198 - drop;
             const torsoColor = outfit === 'bare' ? look.skin : look.suit;
+            const sw = bw * body.shoulder, ww = bw * body.waist;
             fill(ctx, roundedPoly([
-                [-27 * bw, hipY + 6], [27 * bw, hipY + 6],
-                [31 * bw, hipY + 30], [46 * bw, top - 22], [54 * bw, top - 8], [30 * bw, top + 2],
-                [-30 * bw, top + 2], [-54 * bw, top - 8], [-46 * bw, top - 22], [-31 * bw, hipY + 30],
+                [-27 * hw, hipY + 6], [27 * hw, hipY + 6],
+                [31 * ww, hipY + 30], [46 * sw, top - 22], [54 * sw, top - 8], [30 * sw, top + 2],
+                [-30 * sw, top + 2], [-54 * sw, top - 8], [-46 * sw, top - 22], [-31 * ww, hipY + 30],
             ], 10), torsoColor);
             switch (outfit) {
-                case 'bodysuit': drawSuitLines(ctx, look, top, hipY, bw); break;
+                case 'bodysuit': drawSuitLines(ctx, look, top, hipY, body); break;
                 case 'tux': drawTux(ctx, look, top, hipY); break;
-                case 'bare': drawMuscles(ctx, look.skin, top, hipY, bw); break;
-                case 'armor': drawArmorChest(ctx, look, top, hipY, bw); break;
+                case 'bare': drawMuscles(ctx, look, top, hipY, body); break;
+                case 'armor': drawArmorChest(ctx, look, top, hipY, body); break;
             }
             if (look.belt && outfit !== 'armor') {
-                fill(ctx, rrect(-26 * bw, hipY + 4, 52 * bw, 9, 3), look.accent, 1.2);
+                fill(ctx, rrect(-26 * hw, hipY + 4, 52 * hw, 9, 3), look.accent, 1.2);
                 fill(ctx, rrect(-6, hipY + 2.5, 12, 12, 3), scaled(look.accent, 1.15), 1.2);
             }
             if (look.emblem === 'core' && outfit !== 'armor') {
@@ -725,16 +794,18 @@
 
             // Neck.
             const neckColor = covers && look.mask !== 'cowl' ? look.maskColor : look.skin;
-            fill(ctx, rrect(-10, top - 4, 22, 18, 7), neckColor, 1.2);
-            if (outfit === 'tux') fill(ctx, rrect(-10, top - 2, 22, 7, 3), '#F4F4F4', 1);
+            const neckW = body.feminine ? 17 : 22;
+            fill(ctx, rrect(1 - neckW / 2, top - 4, neckW, 18, 7), neckColor, 1.2);
+            if (outfit === 'tux') fill(ctx, rrect(1 - neckW / 2, top - 2, neckW, 7, 3), '#F4F4F4', 1);
 
             // Arms (a hand raised to the mouth is drawn over the face).
             const crossing = p.elbowR > 1.9 && p.armR > 1.0;
-            drawArm(ctx, look, p, true, drop, bw);
-            if (!crossing) drawArm(ctx, look, p, false, drop, bw);
+            drawArm(ctx, look, p, true, drop, body);
+            if (!crossing) drawArm(ctx, look, p, false, drop, body);
             if (outfit === 'armor') {
                 for (const sign of [-1, 1]) {
-                    fill(ctx, ell(sign * Rig.shoulder.x * bw - 18, Rig.shoulder.y - drop - 10, 36, 26), look.suit, 1.6);
+                    const pw = 36 * body.arm;
+                    fill(ctx, ell(sign * body.shoulderX - pw / 2, Rig.shoulder.y - drop - 10, pw, 26 * body.arm), look.suit, 1.6);
                 }
             }
 
@@ -746,7 +817,7 @@
             drawHead(ctx, look, p);
             ctx.restore();
 
-            if (crossing) drawArm(ctx, look, p, false, drop, bw);
+            if (crossing) drawArm(ctx, look, p, false, drop, body);
             if (p.sit > 0.5) drawCup(ctx, look.cup, 52, 0, 0);
         } finally {
             ctx.restore();
@@ -756,7 +827,8 @@
 
     // MARK: Limbs
 
-    function drawLeg(ctx, look, p, left, hipY, bw) {
+    function drawLeg(ctx, look, p, left, hipY, body) {
+        const bw = body.bw * body.leg;
         const sign = left ? -1 : 1;
         const hipAngle = left ? p.legL : p.legR;
         const knee = Math.max(0, left ? p.kneeL : p.kneeR);
@@ -765,14 +837,17 @@
         // Sitting folds the thigh toward the viewer, so it foreshortens.
         const thighLen = Rig.thigh * (1 - 0.72 * p.sit);
         ctx.save();
-        ctx.translate(sign * Rig.hip.x * bw, hipY);
+        ctx.translate(sign * Rig.hip.x * body.bw * body.hip, hipY);
         ctx.rotate(sign * hipAngle);
-        fill(ctx, segment(thighLen, 28 * bw, 19 * bw, 31 * bw), legColor);
+        // The feminine thigh is full at the hip and tapers to a slim knee.
+        fill(ctx, body.feminine ? segment(thighLen, 31 * bw, 17 * bw, 31 * bw)
+                                : segment(thighLen, 28 * bw, 19 * bw, 31 * bw), legColor);
         ctx.translate(0, -thighLen);
         // Knee: the shin swings back and up when bent.
         ctx.rotate(-sign * hipAngle + knee * 0.55);
         const shinLen = Rig.shin * (1 - 0.18 * knee);
-        fill(ctx, segment(shinLen, 19 * bw, 13 * bw, 23 * bw), armor ? look.boots : scaled(legColor, 0.97));
+        fill(ctx, body.feminine ? segment(shinLen, 17 * bw, 11 * bw, 20 * bw)
+                                : segment(shinLen, 19 * bw, 13 * bw, 23 * bw), armor ? look.boots : scaled(legColor, 0.97));
         if (armor) fill(ctx, ell(-8, -6, 16, 12), scaled(look.boots, 1.08), 1.4);
         ctx.translate(0, -shinLen);
         ctx.rotate(-knee * 0.55);
@@ -790,14 +865,15 @@
         ctx.restore();
     }
 
-    function drawArm(ctx, look, p, left, drop, bw) {
+    function drawArm(ctx, look, p, left, drop, body) {
+        const bw = body.bw * body.arm;
         const sign = left ? -1 : 1;
         const shoulder = left ? p.armL : p.armR;
         const elbow = left ? p.elbowL : p.elbowR;
         const sleeve = look.outfit === 'bare' ? look.skin : look.suit;
         const armor = look.outfit === 'armor';
         ctx.save();
-        ctx.translate(sign * Rig.shoulder.x * bw, Rig.shoulder.y - drop);
+        ctx.translate(sign * body.shoulderX, Rig.shoulder.y - drop);
         ctx.rotate(sign * shoulder);
         // Deltoid + upper arm.
         fill(ctx, segment(Rig.upperArm, 25 * bw, 17 * bw, 26 * bw), scaled(sleeve, 0.96));
@@ -862,22 +938,35 @@
 
     // MARK: Torso details
 
-    function drawSuitLines(ctx, look, top, hipY, bw) {
+    function drawSuitLines(ctx, look, top, hipY, body) {
         // Muscle definition through the suit, plus side panels in the accent color.
+        const hw = body.bw * body.waist, sw = body.bw * body.shoulder;
         for (const sign of [-1, 1]) {
-            const panel = roundedPoly([[sign * 24 * bw, hipY + 8], [sign * 30 * bw, hipY + 8],
-                [sign * 44 * bw, top - 26], [sign * 38 * bw, top - 28]], 2);
+            const panel = roundedPoly([[sign * 24 * hw, hipY + 8], [sign * 30 * hw, hipY + 8],
+                [sign * 44 * sw, top - 26], [sign * 38 * sw, top - 28]], 2);
             fill(ctx, panel, scaled(look.accent, 0.95), 0);
         }
         ctx.strokeStyle = css(scaled(look.suit, 0.55), 0.5);
         ctx.lineWidth = 1.4;
         ctx.beginPath();
-        for (const sign of [-1, 1]) {
-            ctx.moveTo(sign * 2, top - 30);
-            ctx.quadraticCurveTo(sign * 20 * bw, top - 38, sign * 34 * bw, top - 26);
+        if (body.feminine) {
+            drawBustLines(ctx, top, sw);
+        } else {
+            for (const sign of [-1, 1]) {
+                ctx.moveTo(sign * 2, top - 30);
+                ctx.quadraticCurveTo(sign * 20 * sw, top - 38, sign * 34 * sw, top - 26);
+            }
         }
         ctx.moveTo(0, top - 32); ctx.lineTo(0, hipY + 16);
         ctx.stroke();
+    }
+
+    /// Two soft curves suggesting the chest's shape under the suit (stroked by the caller).
+    function drawBustLines(ctx, top, sw) {
+        for (const sign of [-1, 1]) {
+            ctx.moveTo(sign * 5, top - 31);
+            ctx.quadraticCurveTo(sign * 15 * sw, top - 42, sign * 30 * sw, top - 25);
+        }
     }
 
     function drawTux(ctx, look, top, hipY) {
@@ -893,15 +982,35 @@
         fill(ctx, roundedPoly([[-30, top - 32], [-20, top - 32], [-22, top - 27]], 1), '#E8E8E8', 0.8);
     }
 
-    function drawMuscles(ctx, skin, top, hipY, bw) {
+    function drawMuscles(ctx, look, top, hipY, body) {
+        const skin = look.skin;
+        const bw = body.bw * body.waist, sw = body.bw * body.shoulder;
         ctx.strokeStyle = css(scaled(skin, 0.55), 0.55);
         ctx.lineWidth = 1.8;
         ctx.beginPath();
+        if (body.feminine) {
+            // Toned abs below an athletic top in the accent color.
+            ctx.moveTo(0, top - 62); ctx.lineTo(0, hipY + 12);
+            for (let y = top - 70; y > hipY + 14; y -= 11) {
+                ctx.moveTo(-10 * bw, y); ctx.quadraticCurveTo(0, y - 2.5, 10 * bw, y);
+            }
+            ctx.stroke();
+            const topPath = roundedPoly([[-40 * sw, top - 14], [-26 * sw, top - 2], [-10, top - 12],
+                [10, top - 12], [26 * sw, top - 2], [40 * sw, top - 14],
+                [36 * sw, top - 42], [-36 * sw, top - 42]], 6);
+            fill(ctx, topPath, look.accent, 1.4);
+            ctx.strokeStyle = css(scaled(look.accent, 0.55), 0.6);
+            ctx.lineWidth = 1.4;
+            ctx.beginPath();
+            drawBustLines(ctx, top, sw);
+            ctx.stroke();
+            return;
+        }
         for (const sign of [-1, 1]) {
             ctx.moveTo(sign * 2, top - 32);
-            ctx.quadraticCurveTo(sign * 22 * bw, top - 44, sign * 40 * bw, top - 24);
+            ctx.quadraticCurveTo(sign * 22 * sw, top - 44, sign * 40 * sw, top - 24);
             ctx.moveTo(sign * 26 * bw, hipY + 8);
-            ctx.quadraticCurveTo(sign * 26 * bw, top - 50, sign * 38 * bw, top - 38);
+            ctx.quadraticCurveTo(sign * 26 * sw, top - 50, sign * 38 * sw, top - 38);
         }
         ctx.moveTo(0, top - 34); ctx.lineTo(0, hipY + 12);
         for (let y = top - 50; y > hipY + 14; y -= 11) {
@@ -910,9 +1019,13 @@
         ctx.stroke();
     }
 
-    function drawArmorChest(ctx, look, top, hipY, bw) {
+    function drawArmorChest(ctx, look, top, hipY, body) {
+        const sw = body.bw * body.shoulder;
         for (const sign of [-1, 1]) {
-            const pec = roundedPoly([[sign * 3, top - 2], [sign * 40 * bw, top - 6], [sign * 38 * bw, top - 30], [sign * 4, top - 38]], 5);
+            const pec = body.feminine
+                ? roundedPoly([[sign * 3, top - 4], [sign * 38 * sw, top - 8], [sign * 36 * sw, top - 30],
+                    [sign * 22 * sw, top - 40], [sign * 6, top - 36]], 9)
+                : roundedPoly([[sign * 3, top - 2], [sign * 40 * sw, top - 6], [sign * 38 * sw, top - 30], [sign * 4, top - 38]], 5);
             fill(ctx, pec, scaled(look.suit, 1.04), 1.4);
         }
         [top - 56, top - 68].forEach((y, row) => {
@@ -921,7 +1034,8 @@
                 fill(ctx, rrect(sign > 0 ? 2 : -2 - w, y, w, 9, 2.5), look.accent, 1);
             }
         });
-        fill(ctx, rrect(-26 * bw, hipY + 4, 52 * bw, 8, 3), scaled(look.suit, 0.75), 1);
+        const beltW = 26 * body.bw * body.hip;
+        fill(ctx, rrect(-beltW, hipY + 4, beltW * 2, 8, 3), scaled(look.suit, 0.75), 1);
         const cx = 0, cy = top - 24;
         fill(ctx, ell(cx - 12, cy - 12, 24, 24), '#6E737C', 1.4);
         glowSpot(ctx, cx, cy, 22, 0.5);
@@ -952,12 +1066,20 @@
         const fx = 2 + p.lookX * 2.5;                      // 3/4 view: features turned toward the look direction
         const c = { x: Rig.head.x, y: Rig.head.y };
         // Skull with a defined jaw.
+        const fem = look.figure === 'feminine';
         const head = new P().M(c.x - 18, c.y + 4)
-            .C(c.x - 19, c.y + 32, c.x + 20, c.y + 32, c.x + 19, c.y + 6)
-            .C(c.x + 19, c.y - 8, c.x + 16, c.y - 17, c.x + 8, c.y - 21)
-            .Q(c.x + 1, c.y - 25, c.x - 6, c.y - 21)
-            .C(c.x - 15, c.y - 17, c.x - 18, c.y - 8, c.x - 18, c.y + 4)
-            .Z();
+            .C(c.x - 19, c.y + 32, c.x + 20, c.y + 32, c.x + 19, c.y + 6);
+        if (fem) {
+            // Softer jaw and a narrower, rounded chin.
+            head.C(c.x + 19, c.y - 7, c.x + 13, c.y - 17, c.x + 5, c.y - 20)
+                .Q(c.x + 1, c.y - 22.5, c.x - 3, c.y - 20)
+                .C(c.x - 12, c.y - 17, c.x - 18, c.y - 7, c.x - 18, c.y + 4);
+        } else {
+            head.C(c.x + 19, c.y - 8, c.x + 16, c.y - 17, c.x + 8, c.y - 21)
+                .Q(c.x + 1, c.y - 25, c.x - 6, c.y - 21)
+                .C(c.x - 15, c.y - 17, c.x - 18, c.y - 8, c.x - 18, c.y + 4);
+        }
+        head.Z();
 
         if (look.mask === 'armor') metal = true;
         drawEars(ctx, look, c, true);
@@ -1013,8 +1135,9 @@
         if (look.mask !== 'helmet') {
             // Nose.
             line(ctx, [[c.x + fx + 3, c.y - 3], [c.x + fx + 4.5, c.y - 9], [c.x + fx + 1.5, c.y - 10]], css(scaled(look.skin, 0.6), 0.7), 1.3);
-            if (look.beard === true) drawBeard(ctx, look.hair, c, fx, head);
-            drawMouth(ctx, p, c.x + fx + 1.5, c.y - 15, scaled(look.skin, 0.5));
+            if (look.beard === true && !fem) drawBeard(ctx, look.hair, c, fx, head);
+            drawMouth(ctx, p, c.x + fx + 1.5, c.y - 15, scaled(look.skin, 0.5),
+                fem ? mixed(look.skin, '#B8405A', 0.55) : null);
         }
         if (!coversHead(look.mask)) drawFrontHair(ctx, look, c);
         drawEars(ctx, look, c, false);
@@ -1056,21 +1179,46 @@
                 ctx.strokeStyle = INK;
                 ctx.lineWidth = 1.2;
                 ctx.stroke(eye);
+                if (look.figure === 'feminine' && look.mask !== 'cowl') {
+                    // A heavier upper lid with a small wing of lashes at the outer corner.
+                    const outer = dx < 0 ? -1 : 1;
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(ex - 5, ey + 0.3);
+                    ctx.quadraticCurveTo(ex, ey + 5 * open, ex + 5, ey + 0.8);
+                    ctx.moveTo(ex + outer * 4.5, ey + 1.2);
+                    ctx.lineTo(ex + outer * 7.5, ey + 3.4);
+                    ctx.moveTo(ex + outer * 3, ey + 2.8 * open);
+                    ctx.lineTo(ex + outer * 5.2, ey + 4.6 * open);
+                    ctx.stroke();
+                }
             }
             // Brows.
             if (look.mask !== 'helmet' && look.mask !== 'cowl') {
                 const inner = dx < 0 ? ex + 4 : ex - 4, outer = dx < 0 ? ex - 5 : ex + 5;
+                const fem = look.figure === 'feminine';
                 ctx.strokeStyle = css(scaled(look.hair, 0.75));
-                ctx.lineWidth = 2.2;
+                ctx.lineWidth = fem ? 1.5 : 2.2;
                 ctx.beginPath();
                 ctx.moveTo(outer, ey + 6 + 1.2 * p.brow);
-                ctx.lineTo(inner, ey + 6 + 2.4 * p.brow - 0.6);
+                if (fem) ctx.quadraticCurveTo((outer + inner) / 2, ey + 8.5 + 1.8 * p.brow, inner, ey + 6.5 + 2.4 * p.brow - 0.6);
+                else ctx.lineTo(inner, ey + 6 + 2.4 * p.brow - 0.6);
                 ctx.stroke();
             }
         }
     }
 
-    function drawMouth(ctx, p, mx, my, lip) {
+    function drawMouth(ctx, p, mx, my, lip, tint = null) {
+        if (tint && p.mouthOpen <= 0.15) {
+            // Fuller, tinted lips.
+            ctx.fillStyle = css(tint);
+            ctx.beginPath();
+            ctx.moveTo(mx - 4.5, my + 0.5);
+            ctx.quadraticCurveTo(mx, my + 3.2 - 2 * p.smile, mx + 4.5, my + 0.5);
+            ctx.quadraticCurveTo(mx, my - 3.6 - 3 * p.smile, mx - 4.5, my + 0.5);
+            ctx.closePath();
+            ctx.fill();
+        }
         if (p.mouthOpen > 0.15) {
             const h = 2.5 + 5 * p.mouthOpen;
             ctx.fillStyle = '#4A1C24';
@@ -1081,8 +1229,8 @@
             ctx.closePath();
             ctx.fill();
         } else {
-            ctx.strokeStyle = css(lip);
-            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = css(tint ? scaled(tint, 0.6) : lip);
+            ctx.lineWidth = tint ? 1.1 : 1.5;
             ctx.beginPath();
             ctx.moveTo(mx - 4.5, my + 0.5);
             ctx.quadraticCurveTo(mx, my + 0.5 - 4 * p.smile, mx + 4.5, my + 0.5);
@@ -1128,6 +1276,19 @@
             .Z();
         fill(ctx, cap, color, 1.4);
         line(ctx, [[c.x - 4, c.y + 27], [c.x + 4, c.y + 17]], css(scaled(color, 0.6), 0.6), 1);
+        if (look.figure === 'feminine' && (look.hairStyle === 'long' || look.hairStyle === 'curly')) {
+            // Locks falling past the cheeks.
+            const back = new P().M(c.x - 19, c.y + 6)
+                .C(c.x - 25, c.y - 6, c.x - 24, c.y - 20, c.x - 18, c.y - 26)
+                .Q(c.x - 13, c.y - 10, c.x - 13, c.y + 4)
+                .Z();
+            fill(ctx, back, color, 1.3);
+            const front = new P().M(c.x + 20, c.y + 10)
+                .C(c.x + 26, c.y - 4, c.x + 26, c.y - 18, c.x + 21, c.y - 24)
+                .Q(c.x + 15, c.y - 8, c.x + 16, c.y + 6)
+                .Z();
+            fill(ctx, front, color, 1.3);
+        }
         if (look.hairStyle === 'curly') {
             for (const [x, y] of [[-14, 22], [-6, 28], [4, 28], [13, 22]]) {
                 fill(ctx, ell(c.x + x - 6, c.y + y - 4, 12, 11), color, 1);
@@ -1245,11 +1406,11 @@
     }
 
     globalThis.Hero = {
-        presets, preset, normalize, appearance,
+        presets, heroes, heroines, preset, normalize, appearance,
         Rig, Pose, PoseAnimator, PoseLibrary,
         Renderer: { height: Rig.height, aspect: 0.62, draw, snapshot },
         EMBLEMS: Emblem,
-        Hair, Mask, Ears, Emblem, Outfit, Build, Attitude,
-        Color: { rgb, scaled, css, hex },
+        Hair, Mask, Ears, Emblem, Outfit, Build, Attitude, Figure,
+        Color: { rgb, scaled, css, hex, mixed },
     };
 })();

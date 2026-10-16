@@ -110,12 +110,24 @@ function renderBuddies() {
     ? 'Your buddy writes fresh lines in this personality with Claude.'
     : 'Add an Anthropic API key under General to give your buddy fresh lines and chat.'
   $('size').value = state.buddyHeight
-  $('heroGrid').replaceChildren(...Hero.presets.map(l => heroCard(l, false)))
+  if (showHeroines === null) showHeroines = lookFor(state.selectedCharacter)?.figure === 'feminine'
+  for (const b of document.querySelectorAll('#roster button')) b.classList.toggle('active', (b.dataset.roster === 'heroines') === showHeroines)
+  $('heroGrid').replaceChildren(...(showHeroines ? Hero.heroines : Hero.heroes).map(l => heroCard(l, false)))
   $('customGrid').replaceChildren(...state.customHeroes.map(l => heroCard(l, true)))
   $('customTitle').style.display = state.customHeroes.length ? '' : 'none'
 }
 
 $('size').oninput = (e) => sip.act('set', 'buddyHeight', +e.target.value)
+
+// Heroes / Heroines roster switch; starts on the one the current buddy belongs to.
+let showHeroines = null
+const lookFor = (name) => {
+  const id = (name || '').replace(/^hero:/, '')
+  return state.customHeroes.find(h => h.id === id) || Hero.preset(id)
+}
+for (const b of document.querySelectorAll('#roster button')) {
+  b.onclick = () => { showHeroines = b.dataset.roster === 'heroines'; renderBuddies() }
+}
 
 // MARK: - Hero Builder
 
@@ -127,6 +139,7 @@ const OPTIONS = {
   outfit: ['bodysuit', 'tux', 'bare', 'armor'],
   build: ['regular', 'big'],
   attitude: ['cheerful', 'stoic', 'fierce'],
+  figure: ['masculine', 'feminine'],
 }
 const OUTFIT_LABELS = { bodysuit: 'Bodysuit', tux: 'Suit & tie', bare: 'Bare', armor: 'Armor' }
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1)
@@ -163,7 +176,7 @@ function buildControls() {
   row('Voice', text('voice', 'How they talk'))
   row('Attitude', select('attitude'))
   section('Body')
-  row('Build', select('build'), select('outfit', OUTFIT_LABELS))
+  row('Body', select('figure', { masculine: 'Male', feminine: 'Female' }), select('build'), select('outfit', OUTFIT_LABELS))
   row('Skin', color('skin'))
   row('Hair', select('hairStyle'), color('hair'))
   row('Mask', select('mask'), color('maskColor'), check('glasses', 'Glasses'), check('beard', 'Beard'))

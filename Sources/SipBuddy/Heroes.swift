@@ -15,6 +15,12 @@ struct RGB: Codable, Equatable, Hashable {
     }
 
     var hex: String { String(format: "#%02X%02X%02X", r, g, b) }
+
+    /// Blends toward `other` by `t` (0 = self, 1 = other).
+    func mixed(with other: RGB, _ t: Double) -> RGB {
+        func c(_ a: UInt8, _ b: UInt8) -> UInt8 { UInt8((Double(a) * (1 - t) + Double(b) * t).rounded()) }
+        return RGB(r: c(r, other.r), g: c(g, other.g), b: c(b, other.b))
+    }
 }
 
 /// A paper-doll hero: every part is a choice, so any combination animates cleanly.
@@ -26,6 +32,7 @@ struct HeroLook: Codable, Equatable {
     enum Outfit: String, Codable, CaseIterable { case bodysuit, tux, bare, armor }
     enum Build: String, Codable, CaseIterable { case regular, big }
     enum Attitude: String, Codable, CaseIterable { case cheerful, stoic, fierce }
+    enum Figure: String, Codable, CaseIterable { case masculine, feminine }
 
     var id: String
     var name: String
@@ -54,6 +61,9 @@ struct HeroLook: Codable, Equatable {
     var build: Build?
     var beard: Bool?
     var attitude: Attitude?
+    var figure: Figure?
+
+    var isFeminine: Bool { figure == .feminine }
 
     var appearance: String {
         var parts = ["\(hairStyle.rawValue) \(hair.hex) hair", "\(suit.hex) suit with \(accent.hex) accents"]
@@ -84,11 +94,11 @@ extension HeroLook {
                  suit: RGB(suit), accent: RGB(accent), pants: RGB(pants), boots: RGB(boots), gloves: RGB(gloves),
                  belt: belt, cape: cape.map(RGB.init), mask: mask, maskColor: RGB(maskColor), ears: ears,
                  emblem: emblem, emblemColor: RGB(emblemColor), glasses: glasses, cup: RGB(cup),
-                 outfit: outfit, build: build, beard: beard, attitude: attitude)
+                 outfit: outfit, build: build, beard: beard, attitude: attitude, figure: .masculine)
     }
 
     /// Original characters (no franchise names or logos), each with its own look and voice.
-    static let presets: [HeroLook] = [
+    static let heroes: [HeroLook] = [
         make("ironclad", "Ironclad", "Hydration systems: online. ⚙️", "cocky, witty genius inventor; calls water 'coolant' and every sip a 'system upgrade'",
              skin: 0xE8B894, hair: 0x2A1E18, hairStyle: .short, suit: 0xB01E28, accent: 0xE0A93A,
              pants: 0xE0A93A, boots: 0xB01E28, gloves: 0xB01E28, belt: false, mask: .armor, maskColor: 0xB01E28,
@@ -147,6 +157,47 @@ extension HeroLook {
              pants: 0x2E3440, boots: 0x1B1B1B, gloves: 0x2E3440, mask: .shades, maskColor: 0x1B1B1B,
              emblem: .none, cup: 0xC8323C),
     ]
+
+    /// A heroine for every hero: same costume and powers, her own name, voice and hair.
+    static let heroines: [HeroLook] = {
+        func her(_ heroID: String, _ name: String, _ tagline: String, _ voice: String,
+                 hair: Hair? = nil, hairColor: UInt32? = nil, _ tweak: (inout HeroLook) -> Void = { _ in }) -> HeroLook {
+            var l = heroes.first { $0.id == heroID }!
+            l.id = heroID + "-her"
+            l.name = name; l.tagline = tagline; l.voice = voice
+            l.figure = .feminine
+            l.beard = false
+            if let hair { l.hairStyle = hair }
+            if let hairColor { l.hair = RGB(hairColor) }
+            tweak(&l)
+            return l
+        }
+        return [
+            her("ironclad", "Alloy", "Hydration protocols: engaged. ✨", "brilliant, confident engineer; calls water 'coolant' and every sip an 'efficiency upgrade'",
+                hair: .ponytail, hairColor: 0x7A3B1E),
+            her("sterling", "Ms. Sterling", "She's back. And she's thirsty.", "stoic retired professional; very short, deadly serious sentences; treats hydration like a sacred contract; sometimes mentions her cat",
+                hair: .long),
+            her("skyline", "Skyla", "Swinging in with your water break!", "quippy, upbeat teen hero who cracks jokes nonstop",
+                hair: .ponytail, hairColor: 0xE8C77A),
+            her("brawn", "Jade", "JADE SMASH… THIRST.", "mighty gentle giant who talks in short ALL-CAPS smash sentences but is secretly very sweet",
+                hair: .long),
+            her("pixel", "Pixie", "Your cozy desk sidekick", "warm, upbeat, a little goofy", hair: .bun),
+            her("hydro", "Captain Marina", "Defender of the daily 8 glasses!", "booming heroic announcer who treats every sip like saving the city",
+                hair: .long),
+            her("volt", "Volta", "Charged up and ready to hydrate ⚡", "hyper, talks fast, loves puns about energy", hair: .ponytail),
+            her("owl", "Nightingale", "Watches over your late-night coding 🌙", "dry, mysterious, speaks in short moody lines with secret warmth",
+                hair: .ponytail),
+            her("comet", "Scarlet Comet", "Fastest hydration in the galaxy", "cocky space racer, competitive, counts everything as a lap record"),
+            her("frost", "Flurry", "Cool, calm and very hydrated ❄️", "serene and elegant, speaks softly like falling snow"),
+            her("cat", "Velvet", "Sneaks up when you forget to drink", "smug feline thief, playful, occasionally says nya"),
+            her("astro", "Astra", "Mission control says: drink water", "cheerful astronaut using mission-control jargon"),
+            her("ember", "Blaze", "Hot-headed, but stays hydrated 🔥", "fiery, dramatic, overreacts to everything", hair: .long),
+            her("sprout", "Blossom", "A tiny plant parent who needs water too 🌸", "gentle, wholesome, compares everything to plants", hair: .curly),
+            her("ninja", "Whisper", "Silent. Swift. Sipping.", "a quiet ninja of few words, speaks in haiku-like fragments"),
+        ]
+    }()
+
+    static let presets: [HeroLook] = heroes + heroines
 
     static func preset(_ id: String) -> HeroLook? { presets.first { $0.id == id } }
 }

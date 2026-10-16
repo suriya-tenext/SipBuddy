@@ -1,7 +1,7 @@
 {
   "name": "sipbuddy",
   "productName": "SipBuddy",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A tiny superhero who walks along your taskbar and reminds you to drink water.",
   "main": "src/main.js",
   "author": "Tenext",

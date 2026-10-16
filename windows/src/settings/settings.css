@@ -104,3 +104,5 @@ label.line { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
 .controls .field input[type=text] { flex: 1; min-width: 0; width: 100%; }
 .controls input[type=color] { width: 34px; height: 26px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: none; }
 .controls .section { grid-column: 1 / -1; font-weight: 600; margin-top: 8px; border-top: 1px solid var(--line); padding-top: 10px; }
+#roster { justify-content: flex-start; margin: 0; }
+#roster button { padding: 6px 14px; font-size: 13px; }

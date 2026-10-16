@@ -100,6 +100,8 @@ final class LibraryModel: ObservableObject {
     static let shared = LibraryModel()
     @Published private(set) var names = CharacterLibrary.names()
     @Published var error: String?
+    /// Which roster the Buddies tab shows; starts on the one the current buddy belongs to.
+    @Published var showHeroines = CharacterLibrary.look(AppState.shared.selectedCharacter)?.isFeminine ?? false
     func reload() { names = CharacterLibrary.names() }
 }
 
@@ -115,13 +117,19 @@ private struct BuddiesTab: View {
             VStack(alignment: .leading, spacing: 16) {
                 personalityBox
                 HStack {
-                    Text("Heroes").font(.headline)
+                    Picker("", selection: $library.showHeroines) {
+                        Text("Heroes").tag(false)
+                        Text("Heroines").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
                     Spacer()
                     Text("Size")
                     Slider(value: $state.buddyHeight, in: 100...360).frame(width: 160)
                 }
                 LazyVGrid(columns: columns, spacing: 10) {
-                    ForEach(CharacterLibrary.presetNames, id: \.self) { thumb($0) }
+                    ForEach((library.showHeroines ? HeroLook.heroines : HeroLook.heroes).map { "hero:\($0.id)" }, id: \.self) { thumb($0) }
                 }
                 HStack {
                     Text("Your buddies").font(.headline)
@@ -325,6 +333,10 @@ private struct BuilderTab: View {
                     GridRow {
                         Text("Body")
                         HStack {
+                            Picker("", selection: option(\.figure, .masculine)) {
+                                Text("Male").tag(HeroLook.Figure.masculine)
+                                Text("Female").tag(HeroLook.Figure.feminine)
+                            }.pickerStyle(.segmented).labelsHidden().frame(width: 130)
                             Picker("", selection: option(\.build, .regular)) {
                                 ForEach(HeroLook.Build.allCases, id: \.self) { Text($0.rawValue.capitalized) }
                             }.pickerStyle(.segmented).labelsHidden().frame(width: 150)

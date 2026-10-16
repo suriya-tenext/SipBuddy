@@ -6,7 +6,7 @@
 //   renderFrame(i) → PNG data URL of frame i of the demo video (30 fps)
 //   renderBanner() / renderFour() → still images
 'use strict'
-const { PoseLibrary: L, Renderer, preset, presets } = Hero
+const { PoseLibrary: L, Renderer, preset, heroes: presets } = Hero
 const W = 1280, H = 720, FPS = 30
 const GROUND = H - 84
 const DURATION = 24
@@ -239,16 +239,16 @@ function lineup(t) {
   ctx.globalAlpha = 1
 }
 
-function title(cx, y, big = 74) {
+function title(cx, y, big = 74, main = 'SipBuddy 💧', sub = 'A tiny superhero that keeps you hydrated · macOS & Windows') {
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'
   ctx.font = `800 ${big}px -apple-system, "Segoe UI", system-ui, sans-serif`
   ctx.fillStyle = '#fff'
   ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 4
-  ctx.fillText('SipBuddy 💧', cx, y)
+  ctx.fillText(main, cx, y)
   ctx.shadowColor = 'transparent'
   ctx.font = `500 ${Math.round(big * 0.34)}px -apple-system, "Segoe UI", system-ui, sans-serif`
   ctx.fillStyle = 'rgba(255,255,255,0.88)'
-  ctx.fillText('A tiny superhero that keeps you hydrated · macOS & Windows', cx, y + big * 0.62)
+  ctx.fillText(sub, cx, y + big * 0.62)
 }
 
 function renderFrame(i) {
@@ -286,14 +286,16 @@ function renderFrame(i) {
 
 // MARK: - Stills
 
-function renderBanner() {
-  const n = presets.length, step = 148
+function renderBanner(which = 'heroes') {
+  const list = which === 'heroines' ? Hero.heroines : presets
+  const n = list.length, step = 148
   const BW = n * step + 120, BH = 640
   canvas.width = BW; canvas.height = BH
   wallpaper(BW, BH)
-  title(BW / 2, 140, 84)
+  if (which === 'heroines') title(BW / 2, 140, 84, 'Meet the heroines ✨', 'A heroine version of every hero · same powers, her own voice')
+  else title(BW / 2, 140, 84)
   const poses = [L.idle(0.5), L.walk(1.5, 1), L.drink(1.0, 1), L.idle(1.7), L.walk(0.4, 2)]
-  presets.forEach((look, i) => {
+  list.forEach((look, i) => {
     const x = 60 + step / 2 + i * step
     drawHero(look, poses[i % poses.length], x, BH - 36, 330, i < n / 2)
   })

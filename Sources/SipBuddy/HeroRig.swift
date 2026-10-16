@@ -282,6 +282,30 @@ enum HeroRenderer {
     private static var metalGradients: [RGB: CGGradient] = [:]
     /// While drawing armor, fills use the polished-metal material instead of satin.
     private static var metal = false
+    /// Body proportions: build scales everything; the feminine figure narrows the shoulders and waist,
+    /// widens the hips and slims the limbs.
+    struct Body {
+        var bw: CGFloat          // overall build
+        var shoulder: CGFloat    // shoulder & chest width
+        var waist: CGFloat
+        var hip: CGFloat
+        var arm: CGFloat         // arm & hand thickness
+        var leg: CGFloat         // leg & boot thickness
+        var feminine: Bool
+
+        init(_ look: HeroLook) {
+            bw = look.build == .big ? 1.25 : 1
+            feminine = look.isFeminine
+            shoulder = feminine ? 0.84 : 1
+            waist = feminine ? 0.8 : 1
+            hip = feminine ? 1.14 : 1
+            arm = feminine ? 0.74 : 1
+            leg = feminine ? 0.86 : 1
+        }
+
+        var shoulderX: CGFloat { Rig.shoulder.x * bw * shoulder }
+    }
+
     private static let glow = RGB(0x9FF3FF)
     private static let ink = RGB(0x1C1820)
 
@@ -309,7 +333,8 @@ enum HeroRenderer {
         ctx.scaleBy(x: 1 / sqrt(max(0.5, sq)), y: sq)
 
         let outfit = look.outfit ?? .bodysuit
-        let bw: CGFloat = look.build == .big ? 1.25 : 1
+        let body = Body(look)
+        let bw = body.bw
         let drop = 82 * p.sit
         let hipY = Rig.hip.y - drop
         let coversHead = Self.coversHead(look.mask)
@@ -317,31 +342,35 @@ enum HeroRenderer {
 
         // Back layers.
         if let cape = look.cape { drawCape(ctx, cape, p, drop: drop) }
-        if !coversHead { drawBackHair(ctx, look, p, drop: drop) }
+        if !coversHead || (look.hairStyle == .ponytail && (look.mask == .fullface || look.mask == .cowl)) {
+            drawBackHair(ctx, look, p, drop: drop)
+        }
 
         // Legs, then pelvis.
-        for left in [true, false] { drawLeg(ctx, look, p, left: left, hipY: hipY, bw: bw) }
-        let pelvis = roundedPoly([CGPoint(x: -29 * bw, y: hipY - 12), CGPoint(x: 29 * bw, y: hipY - 12),
-                                  CGPoint(x: 30 * bw, y: hipY + 14), CGPoint(x: -30 * bw, y: hipY + 14)], r: 9)
+        for left in [true, false] { drawLeg(ctx, look, p, left: left, hipY: hipY, body: body) }
+        let hw = bw * body.hip
+        let pelvis = roundedPoly([CGPoint(x: -29 * hw, y: hipY - 12), CGPoint(x: 29 * hw, y: hipY - 12),
+                                  CGPoint(x: 30 * hw, y: hipY + 14), CGPoint(x: -30 * hw, y: hipY + 14)], r: 9)
         fill(ctx, pelvis, look.pants)
 
-        // Torso: broad chest tapering to the waist.
+        // Torso: broad chest tapering to the waist (an hourglass for the feminine figure).
         let top = 198 - drop
         let torsoColor = outfit == .bare ? look.skin : look.suit
+        let sw = bw * body.shoulder, ww = bw * body.waist
         let torso = roundedPoly([
-            CGPoint(x: -27 * bw, y: hipY + 6), CGPoint(x: 27 * bw, y: hipY + 6),
-            CGPoint(x: 31 * bw, y: hipY + 30), CGPoint(x: 46 * bw, y: top - 22), CGPoint(x: 54 * bw, y: top - 8), CGPoint(x: 30 * bw, y: top + 2),
-            CGPoint(x: -30 * bw, y: top + 2), CGPoint(x: -54 * bw, y: top - 8), CGPoint(x: -46 * bw, y: top - 22), CGPoint(x: -31 * bw, y: hipY + 30),
+            CGPoint(x: -27 * hw, y: hipY + 6), CGPoint(x: 27 * hw, y: hipY + 6),
+            CGPoint(x: 31 * ww, y: hipY + 30), CGPoint(x: 46 * sw, y: top - 22), CGPoint(x: 54 * sw, y: top - 8), CGPoint(x: 30 * sw, y: top + 2),
+            CGPoint(x: -30 * sw, y: top + 2), CGPoint(x: -54 * sw, y: top - 8), CGPoint(x: -46 * sw, y: top - 22), CGPoint(x: -31 * ww, y: hipY + 30),
         ], r: 10)
         fill(ctx, torso, torsoColor)
         switch outfit {
-        case .bodysuit: drawSuitLines(ctx, look, top: top, hipY: hipY, bw: bw)
+        case .bodysuit: drawSuitLines(ctx, look, top: top, hipY: hipY, body: body)
         case .tux: drawTux(ctx, look, top: top, hipY: hipY)
-        case .bare: drawMuscles(ctx, look.skin, top: top, hipY: hipY, bw: bw)
-        case .armor: drawArmorChest(ctx, look, top: top, hipY: hipY, bw: bw)
+        case .bare: drawMuscles(ctx, look, top: top, hipY: hipY, body: body)
+        case .armor: drawArmorChest(ctx, look, top: top, hipY: hipY, body: body)
         }
         if look.belt && outfit != .armor {
-            fill(ctx, CGPath(roundedRect: CGRect(x: -26 * bw, y: hipY + 4, width: 52 * bw, height: 9), cornerWidth: 3, cornerHeight: 3, transform: nil), look.accent, outline: 1.2)
+            fill(ctx, CGPath(roundedRect: CGRect(x: -26 * hw, y: hipY + 4, width: 52 * hw, height: 9), cornerWidth: 3, cornerHeight: 3, transform: nil), look.accent, outline: 1.2)
             fill(ctx, CGPath(roundedRect: CGRect(x: -6, y: hipY + 2.5, width: 12, height: 12), cornerWidth: 3, cornerHeight: 3, transform: nil), look.accent.scaled(1.15), outline: 1.2)
         }
         if look.emblem == .core && outfit != .armor {
@@ -353,18 +382,20 @@ enum HeroRenderer {
 
         // Neck.
         let neckColor = coversHead && look.mask != .cowl ? look.maskColor : look.skin
-        fill(ctx, CGPath(roundedRect: CGRect(x: -10, y: top - 4, width: 22, height: 18), cornerWidth: 7, cornerHeight: 7, transform: nil), neckColor, outline: 1.2)
+        let neckW: CGFloat = body.feminine ? 17 : 22
+        fill(ctx, CGPath(roundedRect: CGRect(x: 1 - neckW / 2, y: top - 4, width: neckW, height: 18), cornerWidth: 7, cornerHeight: 7, transform: nil), neckColor, outline: 1.2)
         if outfit == .tux {
-            fill(ctx, CGPath(roundedRect: CGRect(x: -10, y: top - 2, width: 22, height: 7), cornerWidth: 3, cornerHeight: 3, transform: nil), RGB(0xF4F4F4), outline: 1)
+            fill(ctx, CGPath(roundedRect: CGRect(x: 1 - neckW / 2, y: top - 2, width: neckW, height: 7), cornerWidth: 3, cornerHeight: 3, transform: nil), RGB(0xF4F4F4), outline: 1)
         }
 
         // Arms (a hand raised to the mouth is drawn over the face).
         let crossing = p.elbowR > 1.9 && p.armR > 1.0
-        drawArm(ctx, look, p, left: true, drop: drop, bw: bw)
-        if !crossing { drawArm(ctx, look, p, left: false, drop: drop, bw: bw) }
+        drawArm(ctx, look, p, left: true, drop: drop, body: body)
+        if !crossing { drawArm(ctx, look, p, left: false, drop: drop, body: body) }
         if outfit == .armor {
             for sign: CGFloat in [-1, 1] {
-                let pad = CGPath(ellipseIn: CGRect(x: sign * Rig.shoulder.x * bw - 18, y: Rig.shoulder.y - drop - 10, width: 36, height: 26), transform: nil)
+                let pw = 36 * body.arm
+                let pad = CGPath(ellipseIn: CGRect(x: sign * body.shoulderX - pw / 2, y: Rig.shoulder.y - drop - 10, width: pw, height: 26 * body.arm), transform: nil)
                 fill(ctx, pad, look.suit, outline: 1.6)
             }
         }
@@ -377,7 +408,7 @@ enum HeroRenderer {
         drawHead(ctx, look, p)
         ctx.restoreGState()
 
-        if crossing { drawArm(ctx, look, p, left: false, drop: drop, bw: bw) }
+        if crossing { drawArm(ctx, look, p, left: false, drop: drop, body: body) }
         if p.sit > 0.5 { drawCup(ctx, look.cup, at: CGPoint(x: 52, y: 0), tilt: 0) }
     }
 
@@ -398,7 +429,8 @@ enum HeroRenderer {
         return p
     }
 
-    private static func drawLeg(_ ctx: CGContext, _ look: HeroLook, _ p: Pose, left: Bool, hipY: CGFloat, bw: CGFloat) {
+    private static func drawLeg(_ ctx: CGContext, _ look: HeroLook, _ p: Pose, left: Bool, hipY: CGFloat, body: Body) {
+        let bw = body.bw * body.leg
         let sign: CGFloat = left ? -1 : 1
         let hipAngle = left ? p.legL : p.legR
         let knee = max(0, left ? p.kneeL : p.kneeR)
@@ -407,14 +439,17 @@ enum HeroRenderer {
         // Sitting folds the thigh toward the viewer, so it foreshortens.
         let thighLen = Rig.thigh * (1 - 0.72 * p.sit)
         ctx.saveGState()
-        ctx.translateBy(x: sign * Rig.hip.x * bw, y: hipY)
+        ctx.translateBy(x: sign * Rig.hip.x * body.bw * body.hip, y: hipY)
         ctx.rotate(by: sign * hipAngle)
-        fill(ctx, segment(thighLen, 28 * bw, 19 * bw, bulge: 31 * bw), legColor)
+        // The feminine thigh is full at the hip and tapers to a slim knee.
+        fill(ctx, body.feminine ? segment(thighLen, 31 * bw, 17 * bw, bulge: 31 * bw)
+                                : segment(thighLen, 28 * bw, 19 * bw, bulge: 31 * bw), legColor)
         ctx.translateBy(x: 0, y: -thighLen)
         // Knee: the shin swings back and up when bent.
         ctx.rotate(by: -sign * hipAngle + knee * 0.55)
         let shinLen = Rig.shin * (1 - 0.18 * knee)
-        fill(ctx, segment(shinLen, 19 * bw, 13 * bw, bulge: 23 * bw), armor ? look.boots : legColor.scaled(0.97))
+        fill(ctx, body.feminine ? segment(shinLen, 17 * bw, 11 * bw, bulge: 20 * bw)
+                                : segment(shinLen, 19 * bw, 13 * bw, bulge: 23 * bw), armor ? look.boots : legColor.scaled(0.97))
         if armor {
             fill(ctx, CGPath(ellipseIn: CGRect(x: -8, y: -6, width: 16, height: 12), transform: nil), look.boots.scaled(1.08), outline: 1.4)
         }
@@ -435,14 +470,15 @@ enum HeroRenderer {
         ctx.restoreGState()
     }
 
-    private static func drawArm(_ ctx: CGContext, _ look: HeroLook, _ p: Pose, left: Bool, drop: CGFloat, bw: CGFloat) {
+    private static func drawArm(_ ctx: CGContext, _ look: HeroLook, _ p: Pose, left: Bool, drop: CGFloat, body: Body) {
+        let bw = body.bw * body.arm
         let sign: CGFloat = left ? -1 : 1
         let shoulder = left ? p.armL : p.armR
         let elbow = left ? p.elbowL : p.elbowR
         let sleeve = look.outfit == .bare ? look.skin : look.suit
         let armor = look.outfit == .armor
         ctx.saveGState()
-        ctx.translateBy(x: sign * Rig.shoulder.x * bw, y: Rig.shoulder.y - drop)
+        ctx.translateBy(x: sign * body.shoulderX, y: Rig.shoulder.y - drop)
         ctx.rotate(by: sign * shoulder)
         // Deltoid + upper arm.
         fill(ctx, segment(Rig.upperArm, 25 * bw, 17 * bw, bulge: 26 * bw), sleeve.scaled(0.96))
@@ -524,21 +560,34 @@ enum HeroRenderer {
 
     // MARK: Torso details
 
-    private static func drawSuitLines(_ ctx: CGContext, _ look: HeroLook, top: CGFloat, hipY: CGFloat, bw: CGFloat) {
+    private static func drawSuitLines(_ ctx: CGContext, _ look: HeroLook, top: CGFloat, hipY: CGFloat, body: Body) {
         // Muscle definition through the suit, plus side panels in the accent color.
+        let hw = body.bw * body.waist, sw = body.bw * body.shoulder
         for sign: CGFloat in [-1, 1] {
-            let panel = roundedPoly([CGPoint(x: sign * 24 * bw, y: hipY + 8), CGPoint(x: sign * 30 * bw, y: hipY + 8),
-                                     CGPoint(x: sign * 44 * bw, y: top - 26), CGPoint(x: sign * 38 * bw, y: top - 28)], r: 2)
+            let panel = roundedPoly([CGPoint(x: sign * 24 * hw, y: hipY + 8), CGPoint(x: sign * 30 * hw, y: hipY + 8),
+                                     CGPoint(x: sign * 44 * sw, y: top - 26), CGPoint(x: sign * 38 * sw, y: top - 28)], r: 2)
             fill(ctx, panel, look.accent.scaled(0.95), outline: 0)
         }
         ctx.setStrokeColor(look.suit.scaled(0.55).cg(0.5))
         ctx.setLineWidth(1.4)
-        for sign: CGFloat in [-1, 1] {
-            ctx.move(to: CGPoint(x: sign * 2, y: top - 30))
-            ctx.addQuadCurve(to: CGPoint(x: sign * 34 * bw, y: top - 26), control: CGPoint(x: sign * 20 * bw, y: top - 38))
+        if body.feminine {
+            drawBustLines(ctx, top: top, sw: sw)
+        } else {
+            for sign: CGFloat in [-1, 1] {
+                ctx.move(to: CGPoint(x: sign * 2, y: top - 30))
+                ctx.addQuadCurve(to: CGPoint(x: sign * 34 * sw, y: top - 26), control: CGPoint(x: sign * 20 * sw, y: top - 38))
+            }
         }
         ctx.move(to: CGPoint(x: 0, y: top - 32)); ctx.addLine(to: CGPoint(x: 0, y: hipY + 16))
         ctx.strokePath()
+    }
+
+    /// Two soft curves suggesting the chest's shape under the suit (stroked by the caller).
+    private static func drawBustLines(_ ctx: CGContext, top: CGFloat, sw: CGFloat) {
+        for sign: CGFloat in [-1, 1] {
+            ctx.move(to: CGPoint(x: sign * 5, y: top - 31))
+            ctx.addQuadCurve(to: CGPoint(x: sign * 30 * sw, y: top - 25), control: CGPoint(x: sign * 15 * sw, y: top - 42))
+        }
     }
 
     private static func drawTux(_ ctx: CGContext, _ look: HeroLook, top: CGFloat, hipY: CGFloat) {
@@ -558,14 +607,32 @@ enum HeroRenderer {
         fill(ctx, roundedPoly([CGPoint(x: -30, y: top - 32), CGPoint(x: -20, y: top - 32), CGPoint(x: -22, y: top - 27)], r: 1), RGB(0xE8E8E8), outline: 0.8)
     }
 
-    private static func drawMuscles(_ ctx: CGContext, _ skin: RGB, top: CGFloat, hipY: CGFloat, bw: CGFloat) {
+    private static func drawMuscles(_ ctx: CGContext, _ look: HeroLook, top: CGFloat, hipY: CGFloat, body: Body) {
+        let skin = look.skin
+        let bw = body.bw * body.waist, sw = body.bw * body.shoulder
         ctx.setStrokeColor(skin.scaled(0.55).cg(0.55))
         ctx.setLineWidth(1.8)
+        if body.feminine {
+            // Toned abs below an athletic top in the accent color.
+            ctx.move(to: CGPoint(x: 0, y: top - 62)); ctx.addLine(to: CGPoint(x: 0, y: hipY + 12))
+            for y in stride(from: top - 70, to: hipY + 14, by: -11) {
+                ctx.move(to: CGPoint(x: -10 * bw, y: y)); ctx.addQuadCurve(to: CGPoint(x: 10 * bw, y: y), control: CGPoint(x: 0, y: y - 2.5))
+            }
+            ctx.strokePath()
+            let topPath = roundedPoly([CGPoint(x: -40 * sw, y: top - 14), CGPoint(x: -26 * sw, y: top - 2), CGPoint(x: -10, y: top - 12),
+                                       CGPoint(x: 10, y: top - 12), CGPoint(x: 26 * sw, y: top - 2), CGPoint(x: 40 * sw, y: top - 14),
+                                       CGPoint(x: 36 * sw, y: top - 42), CGPoint(x: -36 * sw, y: top - 42)], r: 6)
+            fill(ctx, topPath, look.accent, outline: 1.4)
+            ctx.setStrokeColor(look.accent.scaled(0.55).cg(0.6)); ctx.setLineWidth(1.4)
+            drawBustLines(ctx, top: top, sw: sw)
+            ctx.strokePath()
+            return
+        }
         for sign: CGFloat in [-1, 1] {
             ctx.move(to: CGPoint(x: sign * 2, y: top - 32))
-            ctx.addQuadCurve(to: CGPoint(x: sign * 40 * bw, y: top - 24), control: CGPoint(x: sign * 22 * bw, y: top - 44))
+            ctx.addQuadCurve(to: CGPoint(x: sign * 40 * sw, y: top - 24), control: CGPoint(x: sign * 22 * sw, y: top - 44))
             ctx.move(to: CGPoint(x: sign * 26 * bw, y: hipY + 8))
-            ctx.addQuadCurve(to: CGPoint(x: sign * 38 * bw, y: top - 38), control: CGPoint(x: sign * 26 * bw, y: top - 50))
+            ctx.addQuadCurve(to: CGPoint(x: sign * 38 * sw, y: top - 38), control: CGPoint(x: sign * 26 * sw, y: top - 50))
         }
         ctx.move(to: CGPoint(x: 0, y: top - 34)); ctx.addLine(to: CGPoint(x: 0, y: hipY + 12))
         for y in stride(from: top - 50, to: hipY + 14, by: -11) {
@@ -574,10 +641,14 @@ enum HeroRenderer {
         ctx.strokePath()
     }
 
-    private static func drawArmorChest(_ ctx: CGContext, _ look: HeroLook, top: CGFloat, hipY: CGFloat, bw: CGFloat) {
+    private static func drawArmorChest(_ ctx: CGContext, _ look: HeroLook, top: CGFloat, hipY: CGFloat, body: Body) {
+        let sw = body.bw * body.shoulder
         for sign: CGFloat in [-1, 1] {
-            let pec = roundedPoly([CGPoint(x: sign * 3, y: top - 2), CGPoint(x: sign * 40 * bw, y: top - 6),
-                                   CGPoint(x: sign * 38 * bw, y: top - 30), CGPoint(x: sign * 4, y: top - 38)], r: 5)
+            let pec = body.feminine
+                ? roundedPoly([CGPoint(x: sign * 3, y: top - 4), CGPoint(x: sign * 38 * sw, y: top - 8), CGPoint(x: sign * 36 * sw, y: top - 30),
+                               CGPoint(x: sign * 22 * sw, y: top - 40), CGPoint(x: sign * 6, y: top - 36)], r: 9)
+                : roundedPoly([CGPoint(x: sign * 3, y: top - 2), CGPoint(x: sign * 40 * sw, y: top - 6),
+                               CGPoint(x: sign * 38 * sw, y: top - 30), CGPoint(x: sign * 4, y: top - 38)], r: 5)
             fill(ctx, pec, look.suit.scaled(1.04), outline: 1.4)
         }
         for (row, y) in [top - 56, top - 68].enumerated() {
@@ -587,7 +658,8 @@ enum HeroRenderer {
                 fill(ctx, plate, look.accent, outline: 1)
             }
         }
-        fill(ctx, CGPath(roundedRect: CGRect(x: -26 * bw, y: hipY + 4, width: 52 * bw, height: 8), cornerWidth: 3, cornerHeight: 3, transform: nil), look.suit.scaled(0.75), outline: 1)
+        let beltW = 26 * body.bw * body.hip
+        fill(ctx, CGPath(roundedRect: CGRect(x: -beltW, y: hipY + 4, width: beltW * 2, height: 8), cornerWidth: 3, cornerHeight: 3, transform: nil), look.suit.scaled(0.75), outline: 1)
         let c = CGPoint(x: 0, y: top - 24)
         fill(ctx, CGPath(ellipseIn: CGRect(x: c.x - 12, y: c.y - 12, width: 24, height: 24), transform: nil), RGB(0x6E737C), outline: 1.4)
         glowSpot(ctx, at: c, radius: 22, alpha: 0.5)
@@ -621,11 +693,19 @@ enum HeroRenderer {
         let c = CGPoint(x: Rig.head.x, y: Rig.head.y)
         // Skull with a defined jaw.
         let head = CGMutablePath()
+        let fem = look.isFeminine
         head.move(to: CGPoint(x: c.x - 18, y: c.y + 4))
         head.addCurve(to: CGPoint(x: c.x + 19, y: c.y + 6), control1: CGPoint(x: c.x - 19, y: c.y + 32), control2: CGPoint(x: c.x + 20, y: c.y + 32))
-        head.addCurve(to: CGPoint(x: c.x + 8, y: c.y - 21), control1: CGPoint(x: c.x + 19, y: c.y - 8), control2: CGPoint(x: c.x + 16, y: c.y - 17))
-        head.addQuadCurve(to: CGPoint(x: c.x - 6, y: c.y - 21), control: CGPoint(x: c.x + 1, y: c.y - 25))
-        head.addCurve(to: CGPoint(x: c.x - 18, y: c.y + 4), control1: CGPoint(x: c.x - 15, y: c.y - 17), control2: CGPoint(x: c.x - 18, y: c.y - 8))
+        if fem {
+            // Softer jaw and a narrower, rounded chin.
+            head.addCurve(to: CGPoint(x: c.x + 5, y: c.y - 20), control1: CGPoint(x: c.x + 19, y: c.y - 7), control2: CGPoint(x: c.x + 13, y: c.y - 17))
+            head.addQuadCurve(to: CGPoint(x: c.x - 3, y: c.y - 20), control: CGPoint(x: c.x + 1, y: c.y - 22.5))
+            head.addCurve(to: CGPoint(x: c.x - 18, y: c.y + 4), control1: CGPoint(x: c.x - 12, y: c.y - 17), control2: CGPoint(x: c.x - 18, y: c.y - 7))
+        } else {
+            head.addCurve(to: CGPoint(x: c.x + 8, y: c.y - 21), control1: CGPoint(x: c.x + 19, y: c.y - 8), control2: CGPoint(x: c.x + 16, y: c.y - 17))
+            head.addQuadCurve(to: CGPoint(x: c.x - 6, y: c.y - 21), control: CGPoint(x: c.x + 1, y: c.y - 25))
+            head.addCurve(to: CGPoint(x: c.x - 18, y: c.y + 4), control1: CGPoint(x: c.x - 15, y: c.y - 17), control2: CGPoint(x: c.x - 18, y: c.y - 8))
+        }
         head.closeSubpath()
 
         let armor = look.mask == .armor
@@ -688,8 +768,9 @@ enum HeroRenderer {
             // Nose.
             line(ctx, [CGPoint(x: c.x + fx + 3, y: c.y - 3), CGPoint(x: c.x + fx + 4.5, y: c.y - 9), CGPoint(x: c.x + fx + 1.5, y: c.y - 10)],
                  look.skin.scaled(0.6).cg(0.7), width: 1.3)
-            if look.beard == true { drawBeard(ctx, look.hair, c: c, fx: fx, head: head) }
-            drawMouth(ctx, p, at: CGPoint(x: c.x + fx + 1.5, y: c.y - 15), lip: look.skin.scaled(0.5))
+            if look.beard == true && !fem { drawBeard(ctx, look.hair, c: c, fx: fx, head: head) }
+            drawMouth(ctx, p, at: CGPoint(x: c.x + fx + 1.5, y: c.y - 15), lip: look.skin.scaled(0.5),
+                      tint: fem ? look.skin.mixed(with: RGB(0xB8405A), 0.55) : nil)
         }
         if !coversHead(look.mask) { drawFrontHair(ctx, look, c: c) }
         drawEars(ctx, look, c: c, behind: false)
@@ -730,20 +811,48 @@ enum HeroRenderer {
                 ctx.addPath(eye)
                 ctx.setStrokeColor(ink.cg); ctx.setLineWidth(1.2)
                 ctx.strokePath()
+                if look.isFeminine && look.mask != .cowl {
+                    // A heavier upper lid with a small wing of lashes at the outer corner.
+                    let outer: CGFloat = dx < 0 ? -1 : 1
+                    ctx.setLineWidth(2)
+                    ctx.move(to: CGPoint(x: e.x - 5, y: e.y + 0.3))
+                    ctx.addQuadCurve(to: CGPoint(x: e.x + 5, y: e.y + 0.8), control: CGPoint(x: e.x, y: e.y + 5 * open))
+                    ctx.move(to: CGPoint(x: e.x + outer * 4.5, y: e.y + 1.2))
+                    ctx.addLine(to: CGPoint(x: e.x + outer * 7.5, y: e.y + 3.4))
+                    ctx.move(to: CGPoint(x: e.x + outer * 3, y: e.y + 2.8 * open))
+                    ctx.addLine(to: CGPoint(x: e.x + outer * 5.2, y: e.y + 4.6 * open))
+                    ctx.strokePath()
+                }
             }
             // Brows.
             if look.mask != .helmet && look.mask != .cowl {
                 let inner = dx < 0 ? e.x + 4 : e.x - 4, outer = dx < 0 ? e.x - 5 : e.x + 5
                 ctx.setStrokeColor(look.hair.scaled(0.75).cg)
-                ctx.setLineWidth(2.2)
+                ctx.setLineWidth(look.isFeminine ? 1.5 : 2.2)
                 ctx.move(to: CGPoint(x: outer, y: e.y + 6 + 1.2 * p.brow))
-                ctx.addLine(to: CGPoint(x: inner, y: e.y + 6 + 2.4 * p.brow - 0.6))
+                if look.isFeminine {
+                    ctx.addQuadCurve(to: CGPoint(x: inner, y: e.y + 6.5 + 2.4 * p.brow - 0.6),
+                                     control: CGPoint(x: (outer + inner) / 2, y: e.y + 8.5 + 1.8 * p.brow))
+                } else {
+                    ctx.addLine(to: CGPoint(x: inner, y: e.y + 6 + 2.4 * p.brow - 0.6))
+                }
                 ctx.strokePath()
             }
         }
     }
 
-    private static func drawMouth(_ ctx: CGContext, _ p: Pose, at m: CGPoint, lip: RGB) {
+    private static func drawMouth(_ ctx: CGContext, _ p: Pose, at m: CGPoint, lip: RGB, tint: RGB? = nil) {
+        if let tint, p.mouthOpen <= 0.15 {
+            // Fuller, tinted lips.
+            let lips = CGMutablePath()
+            lips.move(to: CGPoint(x: m.x - 4.5, y: m.y + 0.5))
+            lips.addQuadCurve(to: CGPoint(x: m.x + 4.5, y: m.y + 0.5), control: CGPoint(x: m.x, y: m.y + 3.2 - 2 * p.smile))
+            lips.addQuadCurve(to: CGPoint(x: m.x - 4.5, y: m.y + 0.5), control: CGPoint(x: m.x, y: m.y - 3.6 - 3 * p.smile))
+            lips.closeSubpath()
+            ctx.addPath(lips)
+            ctx.setFillColor(tint.cg)
+            ctx.fillPath()
+        }
         if p.mouthOpen > 0.15 {
             let h = 2.5 + 5 * p.mouthOpen
             let mouth = CGMutablePath()
@@ -754,7 +863,7 @@ enum HeroRenderer {
             ctx.setFillColor(RGB(0x4A1C24).cg)
             ctx.fillPath()
         } else {
-            ctx.setStrokeColor(lip.cg); ctx.setLineWidth(1.5)
+            ctx.setStrokeColor((tint?.scaled(0.6) ?? lip).cg); ctx.setLineWidth(tint == nil ? 1.5 : 1.1)
             ctx.move(to: CGPoint(x: m.x - 4.5, y: m.y + 0.5))
             ctx.addQuadCurve(to: CGPoint(x: m.x + 4.5, y: m.y + 0.5), control: CGPoint(x: m.x, y: m.y + 0.5 - 4 * p.smile))
             ctx.strokePath()
@@ -804,6 +913,21 @@ enum HeroRenderer {
         cap.closeSubpath()
         fill(ctx, cap, color, outline: 1.4)
         line(ctx, [CGPoint(x: c.x - 4, y: c.y + 27), CGPoint(x: c.x + 4, y: c.y + 17)], color.scaled(0.6).cg(0.6), width: 1)
+        if look.isFeminine && (look.hairStyle == .long || look.hairStyle == .curly) {
+            // Locks falling past the cheeks.
+            let back = CGMutablePath()
+            back.move(to: CGPoint(x: c.x - 19, y: c.y + 6))
+            back.addCurve(to: CGPoint(x: c.x - 18, y: c.y - 26), control1: CGPoint(x: c.x - 25, y: c.y - 6), control2: CGPoint(x: c.x - 24, y: c.y - 20))
+            back.addQuadCurve(to: CGPoint(x: c.x - 13, y: c.y + 4), control: CGPoint(x: c.x - 13, y: c.y - 10))
+            back.closeSubpath()
+            fill(ctx, back, color, outline: 1.3)
+            let front = CGMutablePath()
+            front.move(to: CGPoint(x: c.x + 20, y: c.y + 10))
+            front.addCurve(to: CGPoint(x: c.x + 21, y: c.y - 24), control1: CGPoint(x: c.x + 26, y: c.y - 4), control2: CGPoint(x: c.x + 26, y: c.y - 18))
+            front.addQuadCurve(to: CGPoint(x: c.x + 16, y: c.y + 6), control: CGPoint(x: c.x + 15, y: c.y - 8))
+            front.closeSubpath()
+            fill(ctx, front, color, outline: 1.3)
+        }
         if look.hairStyle == .curly {
             for (x, y) in [(-14, 22), (-6, 28), (4, 28), (13, 22)] {
                 fill(ctx, CGPath(ellipseIn: CGRect(x: c.x + CGFloat(x) - 6, y: c.y + CGFloat(y) - 4, width: 12, height: 11), transform: nil), color, outline: 1)
