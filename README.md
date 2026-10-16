@@ -8,7 +8,7 @@ Grab the latest build from **[Releases](../../releases/latest)**:
 
 | Platform | File | First launch |
 |---|---|---|
-| **macOS 14+** (Apple Silicon & Intel) | `SipBuddy-macOS.zip` | Unzip, move to Applications, then **right-click → Open** (the app isn't notarized yet). |
+| **macOS 14+** (Apple Silicon) | `SipBuddy-macOS.zip` | Unzip, move to Applications, then **right-click → Open** (the app isn't notarized yet). |
 | **Windows 10/11** (x64) | `SipBuddy-Setup-1.0.0.exe` | If SmartScreen warns, click **More info → Run anyway** (the installer isn't code-signed yet). |
 
 The buddy appears above your dock or taskbar. Look for 💧 in the menu bar (macOS) or the system tray (Windows) for Settings, Pause and Quit.
