@@ -16,10 +16,19 @@ Grab the latest build from **[Releases](../../releases/latest)**:
 
 | Platform | File | First launch |
 |---|---|---|
-| **macOS 14+** (Apple Silicon) | `SipBuddy-macOS.zip` | Unzip, move to Applications, then **right-click → Open** (the app isn't notarized yet). |
+| **macOS 14+** (Apple Silicon) | `SipBuddy-macOS.zip` | Unzip and move to Applications. macOS will say it "could not verify" SipBuddy the first time; see [Opening on macOS](#opening-on-macos). |
 | **Windows 10/11** (x64) | `SipBuddy-Setup-1.1.0.exe` | If SmartScreen warns, click **More info → Run anyway** (the installer isn't code-signed yet). |
 
 The buddy appears above your dock or taskbar. Look for 💧 in the menu bar (macOS) or the system tray (Windows) for Settings, Pause and Quit.
+
+### Opening on macOS
+
+SipBuddy isn't notarized by Apple yet, so the first launch shows **"SipBuddy" Not Opened: Apple could not verify "SipBuddy" is free of malware**. Click **Done** (not Move to Trash), then either:
+
+- **System Settings:** open **System Settings → Privacy & Security**, scroll to *"SipBuddy" was blocked to protect your Mac*, click **Open Anyway** and confirm with your password; or
+- **Terminal:** run `xattr -dr com.apple.quarantine /Applications/SipBuddy.app`, then open SipBuddy normally.
+
+You only need to do this once per Mac.
 
 ## Build from source
 
