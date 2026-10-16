@@ -1,0 +1,21 @@
+<!doctype html>
+<meta charset="utf-8">
+<script src="../src/shared/hero.js"></script>
+<script>
+  // Same layout as the Swift harness: 15 heroes × 7 poses, 300px snapshots in 375px cells.
+  const { presets, PoseLibrary: L, Renderer } = Hero;
+  const poses = [L.idle(0.5), L.walk(1.5, 1), L.remind(0.2), L.drink(1.0, 1), L.cheer(0.5, 1), L.sleep(1), L.dangle(1, 0.2)];
+  const params = new URLSearchParams(location.search);
+  const only = params.get('only');
+  const heroes = only ? only.split(',').map(Hero.preset) : presets;
+  const cellH = Number(params.get('cell') || 300), cellW = Math.round(cellH * 1.25);
+  const sheet = document.createElement('canvas');
+  sheet.width = cellW * poses.length; sheet.height = cellH * heroes.length;
+  const ctx = sheet.getContext('2d');
+  ctx.fillStyle = 'rgb(242,242,247)';
+  ctx.fillRect(0, 0, sheet.width, sheet.height);
+  const t0 = performance.now();
+  heroes.forEach((h, r) => poses.forEach((p, c) => ctx.drawImage(Renderer.snapshot(h, p, cellH), c * cellW, r * cellH)));
+  window.renderMs = performance.now() - t0;
+  window.result = sheet.toDataURL('image/png');
+</script>

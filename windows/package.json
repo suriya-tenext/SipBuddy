@@ -1,0 +1,35 @@
+{
+  "name": "sipbuddy",
+  "productName": "SipBuddy",
+  "version": "1.0.0",
+  "description": "A tiny superhero who walks along your taskbar and reminds you to drink water.",
+  "main": "src/main.js",
+  "author": "Tenext",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win nsis --x64"
+  },
+  "build": {
+    "appId": "in.tenext.sipbuddy",
+    "productName": "SipBuddy",
+    "files": [
+      "src/**/*",
+      "assets/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.png",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "SipBuddy-Setup-${version}.exe"
+    }
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  }
+}
