@@ -1,6 +1,14 @@
 # SipBuddy 💧
 
+![SipBuddy: 15 heroes lined up](docs/banner.png)
+
 A tiny animated superhero who walks along your dock or taskbar and reminds you to drink water (or stretch, rest your eyes, take meds — any reminder you like).
+
+<p align="center">
+  <img src="docs/demo.gif" alt="SipBuddy demo: Ironclad walks over, reminds you to drink, drinks and celebrates when you click; then Skyline, Mr. Sterling and Brawn say hi" width="720">
+  <br>
+  <sub>▶️ <a href="docs/demo.mp4">Watch the demo in full quality (MP4)</a></sub>
+</p>
 
 ## Download
 
@@ -35,6 +43,12 @@ npm run dist:win      # → windows/dist/SipBuddy-Setup-<version>.exe
 
 The Windows app is a port of the macOS one: same 15 heroes (the renderer in `windows/src/shared/hero.js` is a line-for-line port of `HeroRig.swift`), Hero Builder, reminders, personalities, and Claude chat with reminder tools. The AI sprite Studio (selfie → animated character) is macOS-only for now.
 
+## Screenshots
+
+| Reminders | Pick your hero | Hero Builder |
+|---|---|---|
+| ![Reminders settings](docs/screenshot-reminders.png) | ![Buddies settings](docs/screenshot-buddies.png) | ![Hero Builder](docs/screenshot-builder.png) |
+
 ## Using it
 
 - **Click** the buddy when it's reminding you → marks it done (it drinks + celebrates).
@@ -44,6 +58,8 @@ The Windows app is a port of the macOS one: same 15 heroes (the renderer in `win
 - Menu bar **💧** → upcoming reminders, today's counts, pause for 1 hour.
 
 ## Heroes (no API key needed)
+
+![Ironclad, Mr. Sterling, Skyline and Brawn](docs/heroes.png)
 
 15 original heroes ship built in, led by **Ironclad** (the default), **Mr. Sterling**, **Skyline** and **Brawn**, then Pixel, Captain Hydro, Volt, Night Owl, Crimson Comet, Frost, Shadow Cat, Astro, Ember, Sprout and Hush. Each has its own voice. Pick one in **Settings → Buddies**.
 

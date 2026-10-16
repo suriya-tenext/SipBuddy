@@ -1,0 +1,332 @@
+<!doctype html>
+<meta charset="utf-8">
+<script src="../src/shared/hero.js"></script>
+<script>
+// Scripted demo scenes for the README, drawn with the real hero renderer.
+//   renderFrame(i) → PNG data URL of frame i of the demo video (30 fps)
+//   renderBanner() / renderFour() → still images
+'use strict'
+const { PoseLibrary: L, Renderer, preset, presets } = Hero
+const W = 1280, H = 720, FPS = 30
+const GROUND = H - 84
+const DURATION = 24
+
+const canvas = document.createElement('canvas')
+const ctx = canvas.getContext('2d')
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v))
+const ease = (t) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2
+const seg = (t, a, b) => clamp((t - a) / (b - a), 0, 1)
+
+// MARK: - Backdrop
+
+function wallpaper(w, h) {
+  const g = ctx.createLinearGradient(0, 0, w * 0.4, h)
+  g.addColorStop(0, '#1b2a5c')
+  g.addColorStop(0.55, '#3a4fa8')
+  g.addColorStop(1, '#7a6fd6')
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, w, h)
+  for (const [x, y, r, c] of [[0.15, 0.2, 0.32, 'rgba(120,200,255,0.20)'], [0.85, 0.15, 0.28, 'rgba(255,150,210,0.16)'],
+    [0.7, 0.8, 0.4, 'rgba(110,240,220,0.12)']]) {
+    const rg = ctx.createRadialGradient(x * w, y * h, 0, x * w, y * h, r * w)
+    rg.addColorStop(0, c); rg.addColorStop(1, 'rgba(0,0,0,0)')
+    ctx.fillStyle = rg
+    ctx.fillRect(0, 0, w, h)
+  }
+}
+
+function desktop() {
+  wallpaper(W, H)
+  // A faint app window, so it reads as a desktop.
+  ctx.fillStyle = 'rgba(255,255,255,0.08)'
+  ctx.strokeStyle = 'rgba(255,255,255,0.14)'
+  ctx.lineWidth = 1
+  ctx.beginPath(); ctx.roundRect(170, 70, 720, 420, 14); ctx.fill(); ctx.stroke()
+  ctx.fillStyle = 'rgba(255,255,255,0.10)'
+  ctx.fillRect(170, 70, 720, 34)
+  for (const [i, c] of ['#ff5f57', '#febc2e', '#28c840'].entries()) {
+    ctx.fillStyle = c; ctx.globalAlpha = 0.7
+    ctx.beginPath(); ctx.arc(192 + i * 20, 87, 6, 0, 7); ctx.fill()
+  }
+  ctx.globalAlpha = 1
+  ctx.fillStyle = 'rgba(255,255,255,0.13)'
+  for (let i = 0; i < 9; i++) ctx.fillRect(200, 130 + i * 36, 160 + ((i * 137) % 420), 12)
+  // Dock / taskbar.
+  const dw = 560, dx = (W - dw) / 2
+  ctx.fillStyle = 'rgba(255,255,255,0.20)'
+  ctx.strokeStyle = 'rgba(255,255,255,0.30)'
+  ctx.beginPath(); ctx.roundRect(dx, H - 76, dw, 64, 20); ctx.fill(); ctx.stroke()
+  const tiles = ['#4c8dff', '#34c759', '#ff9f0a', '#ff375f', '#5e5ce6', '#64d2ff', '#ffd60a', '#bf5af2']
+  tiles.forEach((c, i) => {
+    const g = ctx.createLinearGradient(0, H - 68, 0, H - 20)
+    g.addColorStop(0, c); g.addColorStop(1, shade(c, 0.7))
+    ctx.fillStyle = g
+    ctx.beginPath(); ctx.roundRect(dx + 18 + i * 66, H - 68, 48, 48, 12); ctx.fill()
+  })
+}
+
+function shade(hex, f) {
+  const n = parseInt(hex.slice(1), 16)
+  const c = (v) => Math.round(clamp(v * f, 0, 255))
+  return `rgb(${c(n >> 16)},${c((n >> 8) & 255)},${c(n & 255)})`
+}
+
+// MARK: - Buddy pieces (same look as the app)
+
+function drawHero(look, pose, x, ground, height, facingRight = true) {
+  const u = height / Renderer.height
+  ctx.save()
+  ctx.translate(x, ground)
+  ctx.scale(u * (facingRight ? 1 : -1), -u)
+  Renderer.draw(ctx, look, pose)
+  ctx.restore()
+}
+
+function wrap(text, font, maxWidth) {
+  ctx.font = font
+  const lines = []
+  for (const para of text.split('\n')) {
+    let line = ''
+    for (const word of para.split(' ')) {
+      const test = line ? `${line} ${word}` : word
+      if (ctx.measureText(test).width > maxWidth && line) { lines.push(line); line = word } else line = test
+    }
+    lines.push(line)
+  }
+  return lines
+}
+
+function bubble(title, subtitle, cx, bottom, alpha = 1, scale = 1.7) {
+  if (alpha <= 0) return
+  ctx.save()
+  ctx.globalAlpha = alpha
+  ctx.translate(cx, bottom)
+  ctx.scale(scale * (0.85 + 0.15 * alpha), scale * (0.85 + 0.15 * alpha))
+  const ink = '#2b1c1a'
+  const tf = '700 13px -apple-system, "Segoe UI", system-ui, sans-serif'
+  const sf = '500 10.5px -apple-system, "Segoe UI", system-ui, sans-serif'
+  const tl = wrap(title, tf, 210), sl = subtitle ? wrap(subtitle, sf, 210) : []
+  let tw = 0
+  ctx.font = tf; for (const l of tl) tw = Math.max(tw, ctx.measureText(l).width)
+  ctx.font = sf; for (const l of sl) tw = Math.max(tw, ctx.measureText(l).width)
+  const w = Math.ceil(tw) + 24, h = tl.length * 17 + sl.length * 14 + 14
+  const bx = -w / 2, by = -h - 9
+  ctx.lineWidth = 2; ctx.strokeStyle = ink; ctx.fillStyle = '#fff'
+  ctx.beginPath(); ctx.roundRect(bx, by, w, h, 10); ctx.fill(); ctx.stroke()
+  ctx.beginPath(); ctx.moveTo(-7, by + h); ctx.lineTo(0, by + h + 9); ctx.lineTo(7, by + h)
+  ctx.fillStyle = ink; ctx.fill(); ctx.stroke()
+  ctx.fillStyle = '#fff'; ctx.fillRect(-6, by + h - 2, 12, 3)
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top'
+  let ty = by + 7
+  ctx.font = tf; ctx.fillStyle = ink
+  for (const l of tl) { ctx.fillText(l, 0, ty); ty += 17 }
+  ctx.font = sf; ctx.fillStyle = '#6b6b6b'
+  for (const l of sl) { ctx.fillText(l, 0, ty); ty += 14 }
+  ctx.restore()
+}
+
+function cursorArrow(x, y, pressed) {
+  ctx.save()
+  ctx.translate(x, y)
+  if (pressed) ctx.scale(0.88, 0.88)
+  ctx.beginPath()
+  ctx.moveTo(0, 0); ctx.lineTo(0, 22); ctx.lineTo(5.5, 17); ctx.lineTo(9.5, 26); ctx.lineTo(13, 24.5)
+  ctx.lineTo(9, 15.5); ctx.lineTo(16, 15.5); ctx.closePath()
+  ctx.fillStyle = '#111'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6
+  ctx.fill(); ctx.stroke()
+  ctx.restore()
+}
+
+// MARK: - Particles (deterministic, simulated alongside the frames)
+
+let particles = []
+function spawn(text, x, y, vx, vy, life, size, gravity = 0) {
+  particles.push({ text, x, y, vx, vy, life, maxLife: life, size, gravity })
+}
+function stepParticles(dt) {
+  for (const p of particles) { p.vy += p.gravity * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt }
+  particles = particles.filter(p => p.life > 0)
+}
+function drawParticles(originX, ground, u, flip) {
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  for (const p of particles) {
+    ctx.globalAlpha = Math.min(1, p.life / (p.maxLife * 0.35))
+    ctx.font = `${p.size * u}px "Apple Color Emoji", "Segoe UI Emoji", sans-serif`
+    ctx.fillText(p.text, originX + p.x * u * flip, ground - p.y * u)
+  }
+  ctx.globalAlpha = 1
+}
+function burst() {
+  for (let i = 0; i < 9; i++) {
+    const a = i / 9 * Math.PI + 0.2
+    spawn(['✨', '⭐️', '💖', '💧'][i % 4], 0, 160, Math.cos(a) * 220, Math.sin(a) * 260, 1.3, 24, -380)
+  }
+}
+
+// MARK: - Storyboard
+
+const HERO_H = 300
+const animator = new Hero.PoseAnimator()
+let simTime = 0, simFrame = -1, lastEmit = -9
+let walkPhase = 0, heroX = -120
+const events = new Set()
+const once = (key, fn) => { if (!events.has(key)) { events.add(key); fn() } }
+
+const montage = [
+  { id: 'skyline', at: 11.2 },
+  { id: 'sterling', at: 14.2 },
+  { id: 'brawn', at: 17.2 },
+]
+
+/** Advances the simulation one frame and returns what to draw. */
+function simulate(t, dt) {
+  let look = preset('ironclad'), target = L.idle(t), say = null, cursor = null, facing = true
+  const center = W / 2
+
+  if (t < 3.2) {
+    const nx = -120 + (center + 120) * seg(t, 0, 3.2)
+    walkPhase += Math.abs(nx - heroX) / HERO_H * 7.5
+    heroX = nx
+    target = L.walk(walkPhase, t)
+  } else if (t < 6.5) {
+    heroX = center
+    once('remind', () => animator.kick('squash', 3))
+    target = L.remind(t)
+    say = { title: 'Coolant check! Time to drink some water 💧', sub: 'click me when done', a: seg(t, 3.25, 3.5) }
+    if (t - lastEmit > 1.2) { lastEmit = t; spawn('💧', 70, 200, 30, 60, 1.2, 22, -160) }
+    const k = ease(seg(t, 4.6, 6.1))
+    cursor = { x: 1060 + (center + 8 - 1060) * k, y: 170 + (GROUND - 140 - 170) * k, pressed: t > 6.25 && t < 6.45 }
+  } else if (t < 6.5 + L.drinkDuration + L.cheerDuration + 0.6) {
+    const local = t - 6.5
+    if (local < L.drinkDuration) target = L.drink(local, t)
+    else if (local < L.drinkDuration + L.cheerDuration) {
+      target = L.cheer(local - L.drinkDuration, t)
+      if (local - L.drinkDuration > 0.25) once('burst1', burst)
+    }
+    say = { title: 'System upgrade complete! ⚙️', sub: '💧 3 today', a: 1 }
+    cursor = local < 0.8 ? { x: center + 8, y: GROUND - 140, pressed: false, a: 1 - local / 0.8 } : null
+  } else if (t < 20.2) {
+    const m = [...montage].reverse().find(m => t >= m.at) || montage[0]
+    look = preset(m.id)
+    const local = t - m.at
+    once(m.id, () => { burst(); animator.kick('squash', 3) })
+    target = local < L.cheerDuration ? L.cheer(local, t) : L.idle(t)
+    if (local < 0) target = L.idle(t)
+    say = { title: look.tagline, sub: `Hi, I'm ${look.name}!`, a: seg(local, 0.1, 0.35) * (1 - seg(local, 2.75, 3.0)) }
+  } else {
+    look = null
+  }
+  return { look, target, say, cursor, facing }
+}
+
+function lineup(t) {
+  const a = seg(t, 20.2, 20.8)
+  // Fade the desktop away so the lineup sits on a clean stage.
+  ctx.globalAlpha = a
+  wallpaper(W, H)
+  const n = presets.length
+  const h = 170
+  presets.forEach((look, i) => {
+    const x = 70 + i * ((W - 140) / (n - 1))
+    const local = t - 20.2 - i * 0.06
+    const pose = local < L.cheerDuration && local > 0 ? L.cheer(local, t + i) : L.remind(t + i * 0.37)
+    drawHero(look, pose, x, H - 40, h, i < n / 2)
+  })
+  ctx.globalAlpha = 1
+  const ta = seg(t, 20.6, 21.2)
+  ctx.globalAlpha = ta
+  title(W / 2, 230)
+  ctx.globalAlpha = 1
+}
+
+function title(cx, y, big = 74) {
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'
+  ctx.font = `800 ${big}px -apple-system, "Segoe UI", system-ui, sans-serif`
+  ctx.fillStyle = '#fff'
+  ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 4
+  ctx.fillText('SipBuddy 💧', cx, y)
+  ctx.shadowColor = 'transparent'
+  ctx.font = `500 ${Math.round(big * 0.34)}px -apple-system, "Segoe UI", system-ui, sans-serif`
+  ctx.fillStyle = 'rgba(255,255,255,0.88)'
+  ctx.fillText('A tiny superhero that keeps you hydrated · macOS & Windows', cx, y + big * 0.62)
+}
+
+function renderFrame(i) {
+  canvas.width = W; canvas.height = H
+  // Simulate deterministically up to frame i.
+  while (simFrame < i) {
+    simFrame++
+    const t = simFrame / FPS
+    const dt = 1 / FPS
+    const s = simulate(t, dt)
+    if (s.look) animator.update(s.target, dt)
+    stepParticles(dt)
+    window._last = s
+    simTime = t
+  }
+  const s = window._last
+  const t = simTime
+  desktop()
+  if (s.look) {
+    const u = HERO_H / Renderer.height
+    const pose = animator.pose
+    drawHero(s.look, pose, heroX, GROUND, HERO_H, s.facing)
+    drawParticles(heroX, GROUND, u, 1)
+    if (s.say) bubble(s.say.title, s.say.sub, heroX, GROUND - (262 + Math.max(0, pose.lift)) * u - 14, s.say.a)
+    if (s.cursor) { ctx.globalAlpha = s.cursor.a ?? 1; cursorArrow(s.cursor.x, s.cursor.y, s.cursor.pressed); ctx.globalAlpha = 1 }
+    if (s.cursor && s.cursor.pressed) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 3
+      ctx.beginPath(); ctx.arc(s.cursor.x, s.cursor.y, 18, 0, 7); ctx.stroke()
+    }
+  } else {
+    lineup(t)
+  }
+  return canvas.toDataURL('image/png')
+}
+
+// MARK: - Stills
+
+function renderBanner() {
+  const n = presets.length, step = 148
+  const BW = n * step + 120, BH = 640
+  canvas.width = BW; canvas.height = BH
+  wallpaper(BW, BH)
+  title(BW / 2, 140, 84)
+  const poses = [L.idle(0.5), L.walk(1.5, 1), L.drink(1.0, 1), L.idle(1.7), L.walk(0.4, 2)]
+  presets.forEach((look, i) => {
+    const x = 60 + step / 2 + i * step
+    drawHero(look, poses[i % poses.length], x, BH - 36, 330, i < n / 2)
+  })
+  return canvas.toDataURL('image/png')
+}
+
+function renderFour() {
+  const BW = 1600, BH = 640
+  canvas.width = BW; canvas.height = BH
+  wallpaper(BW, BH)
+  const items = [
+    ['ironclad', L.remind(0.2), 'Ironclad', 'Armored genius · calls water "coolant"'],
+    ['sterling', L.drink(1.0, 1), 'Mr. Sterling', 'Stoic professional · very short sentences'],
+    ['skyline', L.cheer(0.55, 1), 'Skyline', 'Quippy teen hero · never stops joking'],
+    ['brawn', L.idle(0.5), 'Brawn', 'Gentle giant · ALL-CAPS hydration'],
+  ]
+  items.forEach(([id, pose, name, sub], i) => {
+    const cx = BW / 8 + i * BW / 4
+    ctx.fillStyle = 'rgba(255,255,255,0.10)'
+    ctx.strokeStyle = 'rgba(255,255,255,0.20)'
+    ctx.beginPath(); ctx.roundRect(cx - 175, 40, 350, BH - 80, 24); ctx.fill(); ctx.stroke()
+    drawHero(preset(id), pose, cx, BH - 170, 330)
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'
+    ctx.fillStyle = '#fff'
+    ctx.font = '700 30px -apple-system, "Segoe UI", system-ui, sans-serif'
+    ctx.fillText(name, cx, BH - 110)
+    ctx.fillStyle = 'rgba(255,255,255,0.8)'
+    ctx.font = '500 16px -apple-system, "Segoe UI", system-ui, sans-serif'
+    ctx.fillText(sub, cx, BH - 80)
+  })
+  return canvas.toDataURL('image/png')
+}
+
+window.demo = { renderFrame, renderBanner, renderFour, frames: DURATION * FPS, fps: FPS }
+window.ready = true
+</script>
