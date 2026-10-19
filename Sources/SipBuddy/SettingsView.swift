@@ -650,6 +650,14 @@ private struct GeneralTab: View {
     var body: some View {
         Form {
             Section("Buddy") {
+                Picker("Show buddy", selection: $state.onlyForReminders) {
+                    Text("Only when a reminder is due").tag(true)
+                    Text("Always, walking along the dock").tag(false)
+                }
+                Text(state.onlyForReminders
+                     ? "Your buddy stays out of the way and walks in when it's time. Click it when you're done and it heads back off-screen. Use the 💧 menu to call it for a chat."
+                     : "Your buddy hangs out on your dock all day.")
+                    .font(.caption).foregroundStyle(.secondary)
                 Slider(value: $state.walkSpeed, in: 15...120) { Text("Walk speed") }
                 Toggle("Play a sound when a reminder pops up", isOn: $state.soundEnabled)
             }

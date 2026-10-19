@@ -40,7 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } else {
             menu.addItem(item("Pause for 1 hour", #selector(pause)))
         }
-        menu.addItem(item(buddy.isVisible ? "Hide buddy" : "Show buddy", #selector(toggleBuddy)))
+        menu.addItem(item(buddy.isOnScreen ? "Hide buddy" : "Show buddy", #selector(toggleBuddy)))
         menu.addItem(.separator())
         menu.addItem(item("Settings…", #selector(settings), ","))
         menu.addItem(item("Quit SipBuddy", #selector(quit), "q"))

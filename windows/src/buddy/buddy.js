@@ -58,10 +58,21 @@ const buddyName = () => look.name
 
 function applyState(s, first) {
   const prevChar = state && state.selectedCharacter
+  const prevOnly = state && state.onlyForReminders
   state = s
   look = lookFor(s.selectedCharacter)
   if (first) {
-    if (s.isFirstLaunch) say(`Hi! I'm ${buddyName()} 👋`, 'double-click to chat · right-click for more', 8)
+    if (s.onlyForReminders && s.isFirstLaunch) {
+      summon()
+      say(`Hi! I'm ${buddyName()} 👋`, "I'll pop in when it's time · tray 💧 to call me", 7)
+    } else if (s.onlyForReminders) {
+      goAway()
+    } else if (s.isFirstLaunch) {
+      say(`Hi! I'm ${buddyName()} 👋`, 'double-click to chat · right-click for more', 8)
+    }
+  } else if (prevOnly !== s.onlyForReminders) {
+    if (!s.onlyForReminders && mode.kind === 'away') summon()
+    if (s.onlyForReminders && mode.kind === 'walking') leave()
   } else if (prevChar !== s.selectedCharacter) {
     celebrate()
     say(`Hi, I'm ${buddyName()}! ✨`, null, 3)
@@ -69,6 +80,47 @@ function applyState(s, first) {
 }
 
 function reminder(id) { return state.reminders.find(r => r.id === id) }
+
+// MARK: - Presence (reminders-only mode: walk in when due, walk off when done)
+
+/** Walks in from the nearest screen edge, either to remind or because the user called it. */
+function summon(remindingID) {
+  const half = spriteWidth() / 2
+  if (mode.kind === 'away') {
+    x = cursor.x < window.innerWidth / 2 ? -half - 40 : window.innerWidth + half + 40
+    y = 0
+    animator = new Hero.PoseAnimator()
+    particles = []
+    reportAway(false)
+  }
+  mode = remindingID
+    ? { kind: 'reminding', id: remindingID }
+    : { kind: 'entering', to: clamp(cursor.x, half + 20, window.innerWidth - half - 20) }
+}
+
+/** Walks off the nearest edge; `tick` goes away when it gets there. */
+function leave() {
+  const half = spriteWidth() / 2
+  mode = { kind: 'leaving', to: x < window.innerWidth / 2 ? -half - 60 : window.innerWidth + half + 60 }
+}
+
+function goAway() {
+  mode = { kind: 'away' }
+  particles = []
+  transient = null
+  bubble = null
+  bubbleRect = null
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
+  reportAway(true)
+}
+
+let reportedAway = null
+function reportAway(away) {
+  if (reportedAway === away) return
+  reportedAway = away
+  sip.setAway(away)
+}
 const nextDue = (r) => r.lastDone + r.intervalMinutes * 60000
 
 function isSuppressed() {
@@ -139,6 +191,7 @@ function tick(now) {
     lastReminderCheck = now
     checkReminders()
   }
+  if (mode.kind === 'away') return setIgnore(true)   // off-screen: nothing to animate or draw
 
   const W = window.innerWidth
   const half = spriteWidth() / 2
@@ -148,7 +201,10 @@ function tick(now) {
 
   switch (mode.kind) {
     case 'idle':
-      if (isSuppressed()) {
+      if (state.onlyForReminders && Date.now() >= mode.until && !transient && !isThinking) {
+        // Reminder handled (or the user's done chatting): head back off-screen.
+        leave()
+      } else if (isSuppressed()) {
         target = PoseLibrary.sleep(time)
         emit(1.6, () => spawn('💤', 40, 230, 30, 12, 2.4, 26))
       } else {
@@ -164,6 +220,19 @@ function tick(now) {
     case 'walking':
       target = PoseLibrary.walk(walkPhase, time)
       if (step(mode.to, speed, dt)) mode = { kind: 'idle', until: Date.now() + rand(5, 14) * 1000 }
+      break
+
+    case 'entering':
+      target = PoseLibrary.walk(walkPhase, time)
+      if (step(mode.to, speed * 1.5, dt)) {
+        animator.kick('squash', 3)
+        mode = { kind: 'idle', until: Date.now() + (state.onlyForReminders ? 8000 : rand(5, 14) * 1000) }
+      }
+      break
+
+    case 'leaving':
+      target = PoseLibrary.walk(walkPhase, time)
+      if (step(mode.to, speed * 1.5, dt)) return goAway()
       break
 
     case 'reminding': {
@@ -242,7 +311,9 @@ function tick(now) {
     else transient = null
   }
 
-  x = clamp(x, half, W - half)
+  // Keep the buddy on screen, except while it's walking in or out past the edge.
+  const outside = x < half || x > W - half
+  if (!(mode.kind === 'entering' || mode.kind === 'leaving' || (mode.kind === 'reminding' && outside))) x = clamp(x, half, W - half)
   if (mode.kind !== 'dragging' && mode.kind !== 'falling') y = 0
 
   animator.update(target, dt)
@@ -250,7 +321,7 @@ function tick(now) {
 
   // Full 60 fps only while moving; calm states redraw less often to save battery.
   frameCount++
-  const divisor = mode.kind === 'idle' ? (isSuppressed() ? 6 : 3) : mode.kind === 'reminding' || mode.kind === 'walking' ? 2 : 1
+  const divisor = mode.kind === 'idle' ? (isSuppressed() ? 6 : 3) : ['reminding', 'walking', 'entering', 'leaving'].includes(mode.kind) ? 2 : 1
   const bubbleChanged = JSON.stringify(shownBubble) !== JSON.stringify(bubble)
   bubble = shownBubble
   if (frameCount % divisor === 0 || bubbleChanged) draw()
@@ -427,11 +498,11 @@ function checkReminders() {
     if (isSuppressed()) mode = { kind: 'idle', until: Date.now() + 3000 }
     return
   }
-  if (['dragging', 'falling', 'celebrating'].includes(mode.kind)) return
+  if (['dragging', 'falling', 'celebrating', 'leaving'].includes(mode.kind)) return
   if (isSuppressed() && mode.kind === 'idle' && !transient && Math.random() < 1 / 300) say(sleepyLine(), null, 4)
   const due = dueReminder()
   if (!due) return
-  mode = { kind: 'reminding', id: due.id }
+  summon(due.id)
   animator.kick('squash', 3)
   if (!alerted.has(due.id)) {
     alerted.add(due.id)
@@ -469,7 +540,8 @@ function say(title, subtitle, seconds) {
 
 function handleClick() {
   if (mode.kind === 'reminding') return complete(mode.id)
-  if (mode.kind === 'falling') return
+  // Let the celebration and the walk in/out play out.
+  if (['falling', 'celebrating', 'entering', 'leaving', 'away'].includes(mode.kind)) return
   // Little hop, and say when the next reminder is.
   mode = { kind: 'falling' }
   vy = 560
@@ -558,6 +630,7 @@ sip.onMenu((action) => {
       say('Fine… 😒', null, 2)
       break
     case 'chat': sip.openChat({ x, top: y + height() + 10 }); break
+    case 'summon': if (mode.kind === 'away') summon(); break
   }
 })
 

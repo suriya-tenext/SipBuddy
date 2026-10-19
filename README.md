@@ -17,7 +17,7 @@ Grab the latest build from **[Releases](../../releases/latest)**:
 | Platform | File | First launch |
 |---|---|---|
 | **macOS 14+** (Apple Silicon) | `SipBuddy-macOS.zip` | Unzip and move to Applications. macOS will say it "could not verify" SipBuddy the first time; see [Opening on macOS](#opening-on-macos). |
-| **Windows 10/11** (x64) | `SipBuddy-Setup-1.1.0.exe` | If SmartScreen warns, click **More info → Run anyway** (the installer isn't code-signed yet). |
+| **Windows 10/11** (x64) | `SipBuddy-Setup-1.2.0.exe` | If SmartScreen warns, click **More info → Run anyway** (the installer isn't code-signed yet). |
 
 The buddy appears above your dock or taskbar. Look for 💧 in the menu bar (macOS) or the system tray (Windows) for Settings, Pause and Quit.
 
@@ -60,11 +60,13 @@ The Windows app is a port of the macOS one: same 15 heroes (the renderer in `win
 
 ## Using it
 
+By default your buddy **stays out of the way**: it lives off-screen and only walks in from the edge of the screen when a reminder is due. Click it when you've done the task: it drinks, celebrates, then walks back off-screen. Snooze and Skip send it away too. Prefer a buddy that hangs out all day? Set **Settings → General → Show buddy** to **Always**.
+
 - **Click** the buddy when it's reminding you → marks it done (it drinks + celebrates).
 - **Click** any other time → it hops and tells you when the next reminder is.
 - **Drag** it anywhere → it falls back down to the dock.
 - **Right-click** → Done / Snooze 10 min / Skip / Settings / Quit.
-- Menu bar **💧** → upcoming reminders, today's counts, pause for 1 hour.
+- Menu bar **💧** (tray icon on Windows) → upcoming reminders, today's counts, pause for 1 hour, **Show buddy** to call it in for a chat.
 
 ## Heroes (no API key needed)
 

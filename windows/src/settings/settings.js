@@ -276,6 +276,10 @@ requestAnimationFrame(drawPreview)
 
 function renderGeneral() {
   $('keyStatus').textContent = state.hasAnthropicKey ? '✓ Key saved. Double-click your buddy to chat.' : 'No key yet.'
+  $('presence').value = state.onlyForReminders ? 'reminders' : 'always'
+  $('presenceNote').textContent = state.onlyForReminders
+    ? 'Your buddy stays out of the way and walks in when it\'s time. Click it when you\'re done and it heads back off-screen. Use the tray 💧 to call it for a chat.'
+    : 'Your buddy hangs out on your taskbar all day.'
   $('sound').checked = state.soundEnabled
   $('walkSpeed').value = state.walkSpeed
   $('quiet').checked = state.quietHoursEnabled
@@ -295,6 +299,7 @@ function setupGeneral() {
     $('anthropicKey').value = ''
   }
   $('clearKey').onclick = () => sip.act('setAnthropicKey', '')
+  $('presence').onchange = (e) => sip.act('set', 'onlyForReminders', e.target.value === 'reminders')
   $('sound').onchange = (e) => sip.act('set', 'soundEnabled', e.target.checked)
   $('walkSpeed').onchange = (e) => sip.act('set', 'walkSpeed', +e.target.value)
   $('quiet').onchange = (e) => sip.act('set', 'quietHoursEnabled', e.target.checked)

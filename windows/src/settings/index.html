@@ -86,6 +86,12 @@
     </div>
     <div class="card">
       <div class="card-title">Behavior</div>
+      <label class="line">Show buddy
+        <select id="presence">
+          <option value="reminders">Only when a reminder is due</option>
+          <option value="always">Always, walking along the taskbar</option>
+        </select></label>
+      <div class="muted small" id="presenceNote"></div>
       <label class="line"><input type="checkbox" id="sound"> Play a chime when a reminder is due</label>
       <label class="line">Walking speed <input type="range" id="walkSpeed" min="15" max="120" step="5"></label>
       <label class="line"><input type="checkbox" id="quiet"> Quiet hours from

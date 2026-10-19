@@ -42,6 +42,7 @@ class Store {
       buddyHeight: 180,
       walkSpeed: 45,
       soundEnabled: true,
+      onlyForReminders: true, // stay off-screen; walk in only when a reminder is due
       quietHoursEnabled: false,
       quietStart: 22,
       quietEnd: 8,
@@ -108,7 +109,7 @@ class Store {
   // MARK: settings
 
   set(key, value) {
-    const allowed = ['buddyHeight', 'walkSpeed', 'soundEnabled', 'quietHoursEnabled', 'quietStart', 'quietEnd',
+    const allowed = ['buddyHeight', 'walkSpeed', 'soundEnabled', 'onlyForReminders', 'quietHoursEnabled', 'quietStart', 'quietEnd',
       'selectedCharacter', 'personality', 'reminders', 'linePack']
     if (!allowed.includes(key)) return
     this.data[key] = value

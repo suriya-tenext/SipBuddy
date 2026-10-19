@@ -32,6 +32,8 @@ final class AppState: ObservableObject {
     @Published var buddyHeight: Double { didSet { defaults.set(buddyHeight, forKey: "buddyHeight") } }
     @Published var walkSpeed: Double { didSet { defaults.set(walkSpeed, forKey: "walkSpeed") } }
     @Published var soundEnabled: Bool { didSet { defaults.set(soundEnabled, forKey: "soundEnabled") } }
+    /// When on, the buddy stays off-screen and only walks in when a reminder is due.
+    @Published var onlyForReminders: Bool { didSet { defaults.set(onlyForReminders, forKey: "onlyForReminders") } }
     @Published var quietHoursEnabled: Bool { didSet { defaults.set(quietHoursEnabled, forKey: "quietHoursEnabled") } }
     @Published var quietStart: Int { didSet { defaults.set(quietStart, forKey: "quietStart") } }
     @Published var quietEnd: Int { didSet { defaults.set(quietEnd, forKey: "quietEnd") } }
@@ -65,6 +67,7 @@ final class AppState: ObservableObject {
         buddyHeight = savedHeight < 140 ? 180 : savedHeight
         walkSpeed = defaults.object(forKey: "walkSpeed") as? Double ?? 45
         soundEnabled = defaults.object(forKey: "soundEnabled") as? Bool ?? true
+        onlyForReminders = defaults.object(forKey: "onlyForReminders") as? Bool ?? true
         quietHoursEnabled = defaults.bool(forKey: "quietHoursEnabled")
         quietStart = defaults.object(forKey: "quietStart") as? Int ?? 22
         quietEnd = defaults.object(forKey: "quietEnd") as? Int ?? 8

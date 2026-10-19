@@ -8,6 +8,9 @@ final class BuddyController: NSObject {
     private enum Mode {
         case idle(until: Date)
         case walking(to: CGFloat)
+        case entering(to: CGFloat)    // walking in from off-screen
+        case leaving(to: CGFloat)     // walking off-screen, then hiding
+        case away                     // off-screen and hidden until a reminder is due
         case reminding(UUID)
         case celebrating(started: Date)
         case dragging
@@ -77,10 +80,19 @@ final class BuddyController: NSObject {
         x = screen.midX
         y = screen.minY
         layout()
-        panel.orderFrontRegardless()
 
         if state.isFirstLaunch {
-            say("Hi! I'm \(brain.buddyName) 👋", "double-click to chat · right-click for more", seconds: 8)
+            if state.onlyForReminders {
+                summon()
+                say("Hi! I'm \(brain.buddyName) 👋", "I'll pop in when it's time · menu bar 💧 to call me", seconds: 7)
+            } else {
+                panel.orderFrontRegardless()
+                say("Hi! I'm \(brain.buddyName) 👋", "double-click to chat · right-click for more", seconds: 8)
+            }
+        } else if state.onlyForReminders {
+            hideAway()
+        } else {
+            panel.orderFrontRegardless()
         }
 
         state.$selectedCharacter.dropFirst().sink { [weak self] name in
@@ -96,6 +108,13 @@ final class BuddyController: NSObject {
         }.store(in: &cancellables)
         state.$buddyHeight.dropFirst().sink { [weak self] _ in
             DispatchQueue.main.async { self?.layout() }
+        }.store(in: &cancellables)
+        state.$onlyForReminders.dropFirst().sink { [weak self] only in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if !only, case .away = self.mode { self.summon() }
+                if only, case .walking = self.mode { self.leave() }
+            }
         }.store(in: &cancellables)
         // New reminders / personality → fresh lines (debounced so typing doesn't spam the API).
         state.$reminders.map { _ in () }.merge(with: state.$personality.map { _ in () })
@@ -113,9 +132,55 @@ final class BuddyController: NSObject {
 
     // MARK: - Public
 
+    /// Whether the buddy is on screen right now (it can be "visible" yet away, waiting for a reminder).
+    var isOnScreen: Bool {
+        if case .away = mode { return false }
+        return isVisible
+    }
+
     func toggleVisible() {
+        if isVisible, case .away = mode { summon(); return }
         isVisible.toggle()
-        if isVisible { panel.orderFrontRegardless() } else { panel.orderOut(nil); chatBox.orderOut(nil) }
+        if isVisible {
+            if state.onlyForReminders { mode = .away; summon() } else { panel.orderFrontRegardless() }
+        } else {
+            panel.orderOut(nil); chatBox.orderOut(nil)
+        }
+    }
+
+    /// Walks in from the nearest screen edge (used to call the buddy, or when a reminder is due).
+    func summon(reminding id: UUID? = nil) {
+        let vis = screen.visibleFrame
+        let half = view.spriteSize.width / 2
+        if case .away = mode {
+            let fromLeft = NSEvent.mouseLocation.x < vis.midX
+            x = fromLeft ? vis.minX - half - 40 : vis.maxX + half + 40
+            y = vis.minY
+            animator = PoseAnimator()
+            particles = []
+            panel.orderFrontRegardless()
+        }
+        if let id {
+            mode = .reminding(id)
+        } else {
+            let mouseX = min(max(NSEvent.mouseLocation.x, vis.minX + half + 20), vis.maxX - half - 20)
+            mode = .entering(to: mouseX)
+        }
+    }
+
+    /// Walks off the nearest screen edge; `tick` hides the panel when it gets there.
+    private func leave() {
+        let vis = screen.visibleFrame
+        let half = view.spriteSize.width / 2
+        mode = .leaving(to: x < vis.midX ? vis.minX - half - 60 : vis.maxX + half + 60)
+    }
+
+    private func hideAway() {
+        mode = .away
+        panel.orderOut(nil)
+        chatBox.orderOut(nil)
+        particles = []
+        transient = nil
     }
 
     /// "Done" from the menu bar: completes the active reminder, or the first one.
@@ -125,7 +190,7 @@ final class BuddyController: NSObject {
     }
 
     func openChat() {
-        guard isVisible else { return }
+        guard isOnScreen else { return }
         let anchor = panel.convertToScreen(view.spriteRect)
         chatBox.show(above: anchor, placeholder: "Talk to \(brain.buddyName)…  (esc to close)")
     }
@@ -172,6 +237,7 @@ final class BuddyController: NSObject {
             lastReminderCheck = now
             checkReminders()
         }
+        if case .away = mode { return }   // off-screen: nothing to animate or draw
 
         let vis = screen.visibleFrame
         let half = view.spriteSize.width / 2
@@ -182,8 +248,14 @@ final class BuddyController: NSObject {
         var bubble: Bubble?
 
         switch mode {
+        case .away:
+            return
+
         case .idle(let until):
-            if state.isSuppressed {
+            if state.onlyForReminders && Date() >= until && transient == nil && !isThinking && !chatBox.isVisible {
+                // Reminder handled (or the user's done chatting): head back off-screen.
+                leave()
+            } else if state.isSuppressed {
                 target = PoseLibrary.sleep(time)
                 anim = .sleep
                 emit(every: 1.6) { self.spawn("💤", at: CGPoint(x: 40, y: 230), vy: 30, vx: 12, life: 2.4, size: 26) }
@@ -203,6 +275,24 @@ final class BuddyController: NSObject {
             animTime = walkPhase / 7.5
             if step(toward: goal, speed: speed, dt: dt) {
                 mode = .idle(until: Date().addingTimeInterval(.random(in: 5...14)))
+            }
+
+        case .entering(let goal):
+            target = PoseLibrary.walk(phase: walkPhase, time)
+            anim = .walk
+            animTime = walkPhase / 7.5
+            if step(toward: goal, speed: speed * 1.5, dt: dt) {
+                animator.kick(\.squash, 3)
+                mode = .idle(until: Date().addingTimeInterval(state.onlyForReminders ? 8 : .random(in: 5...14)))
+            }
+
+        case .leaving(let goal):
+            target = PoseLibrary.walk(phase: walkPhase, time)
+            anim = .walk
+            animTime = walkPhase / 7.5
+            if step(toward: goal, speed: speed * 1.5, dt: dt) {
+                hideAway()
+                return
             }
 
         case .reminding(let id):
@@ -281,7 +371,13 @@ final class BuddyController: NSObject {
             if now < t.until { bubble = t.bubble } else { transient = nil }
         }
 
-        x = min(max(x, vis.minX + half), vis.maxX - half)
+        // Keep the buddy on screen, except while it's walking in or out past the edge.
+        let outside = x < vis.minX + half || x > vis.maxX - half
+        switch mode {
+        case .entering, .leaving: break
+        case .reminding where outside: break
+        default: x = min(max(x, vis.minX + half), vis.maxX - half)
+        }
         switch mode {
         case .dragging, .falling: break
         default: y = vis.minY
@@ -298,7 +394,7 @@ final class BuddyController: NSObject {
         let divisor: Int
         switch mode {
         case .idle: divisor = state.isSuppressed ? 6 : 3
-        case .reminding: divisor = 2
+        case .reminding, .walking, .entering, .leaving: divisor = 2
         default: divisor = 1
         }
         guard frameCount % divisor == 0 || bubble != view.bubble else { return }
@@ -347,14 +443,14 @@ final class BuddyController: NSObject {
             return
         }
         switch mode {
-        case .dragging, .falling, .celebrating: return
+        case .dragging, .falling, .celebrating, .leaving: return
         default: break
         }
         if state.isSuppressed, case .idle = mode, transient == nil, Int.random(in: 0..<300) == 0 {
             say(brain.sleepyLine(), seconds: 4)
         }
         guard isVisible, let due = state.dueReminder() else { return }
-        mode = .reminding(due.id)
+        summon(reminding: due.id)
         animator.kick(\.squash, 3)
         if !alerted.contains(due.id) {
             alerted.insert(due.id)
@@ -395,8 +491,12 @@ final class BuddyController: NSObject {
     // MARK: - Interaction
 
     private func handleClick() {
-        if case .reminding(let id) = mode { complete(id); return }
-        if case .falling = mode { return }
+        switch mode {
+        case .reminding(let id): complete(id); return
+        // Let the celebration and the walk in/out play out.
+        case .falling, .celebrating, .entering, .leaving, .away: return
+        default: break
+        }
         // Little hop, and say when the next reminder is.
         mode = .falling
         vy = 560

@@ -14,6 +14,7 @@ app.setAppUserModelId('in.tenext.sipbuddy')
 let store, brain, tray
 let buddyWin, settingsWin, chatWin
 let buddyVisible = true
+let buddyAway = false   // reminders-only mode: off-screen until something is due
 let expanded = false
 let refreshTimer = null
 
@@ -87,8 +88,11 @@ function createBuddy() {
 }
 
 function setBuddyVisible(v) {
+  // "Show buddy" while it's away calls it in instead.
+  if (v && buddyVisible && buddyAway) { buddyWin?.webContents.send('menu', 'summon'); return }
   buddyVisible = v
   if (!buddyWin) return
+  if (v && buddyAway) buddyWin.webContents.send('menu', 'summon')
   if (v) buddyWin.showInactive()
   else { buddyWin.hide(); chatWin?.hide() }
   updateTray()
@@ -152,7 +156,7 @@ function trayMenu() {
   items.push(
     { label: 'Done ✓', click: () => buddyWin?.webContents.send('menu', 'done-now') },
     paused ? { label: 'Resume reminders', click: () => store.pause(0) } : { label: 'Pause for 1 hour', click: () => store.pause(60) },
-    { label: buddyVisible ? 'Hide buddy' : 'Show buddy', click: () => setBuddyVisible(!buddyVisible) },
+    { label: buddyVisible && !buddyAway ? 'Hide buddy' : 'Show buddy', click: () => setBuddyVisible(!(buddyVisible && !buddyAway)) },
     { type: 'separator' },
     { label: 'Settings…', click: () => openSettings() },
     { label: 'Quit SipBuddy', click: () => app.quit() },
@@ -211,6 +215,7 @@ function setupIPC() {
   })
   ipcMain.handle('brainStatus', () => ({ refreshing: brain.isRefreshing, error: brain.lastError }))
   ipcMain.on('chat-close', () => chatWin?.hide())
+  ipcMain.on('buddy-away', (_e, away) => { buddyAway = away; if (away) chatWin?.hide(); updateTray() })
   ipcMain.on('ignore-mouse', (_e, ignore) => {
     if (!buddyWin) return
     if (ignore) buddyWin.setIgnoreMouseEvents(true, { forward: true })

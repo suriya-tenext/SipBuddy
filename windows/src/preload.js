@@ -23,4 +23,5 @@ contextBridge.exposeInMainWorld('sip', {
   openURL: (url) => ipcRenderer.send('open-url', url),
   contextMenu: (info) => ipcRenderer.send('context-menu', info),
   closeChat: () => ipcRenderer.send('chat-close'),
+  setAway: (away) => ipcRenderer.send('buddy-away', away),
 })
